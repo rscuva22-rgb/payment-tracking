@@ -31,6 +31,10 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .disabled-form {
+            opacity: 0.5;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8">
@@ -42,7 +46,7 @@
         <div id="userIdDisplay" class="text-center text-gray-600 text-sm mb-4"></div>
         
         <div class="flex flex-col sm:flex-row justify-center sm:justify-start space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
-            <button onclick="toggleForm('add')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+            <button id="addNewContractBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
                 Add New Contract
             </button>
         </div>
@@ -201,29 +205,19 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Set Firebase debug logging
         setLogLevel('debug');
 
-        // Check if environment variables are available, otherwise use placeholders
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "dummy-api-key",
-            authDomain: "dummy-auth-domain",
-            projectId: "dummy-project-id",
-            storageBucket: "dummy-storage-bucket",
-            messagingSenderId: "dummy-messaging-sender-id",
-            appId: "dummy-app-id"
-        };
-        const projectId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+        const projectId = "payment-process-58488"; // User's project ID
+        
         let db = null;
         let auth = null;
         let userId = null;
-        let formMode = 'add'; // 'add' or 'edit'
+        let formMode = 'add';
         let contractIdToDelete = null;
 
         const contractsTableBody = document.querySelector("#contractsTable tbody");
@@ -231,53 +225,66 @@
         const loadingIndicator = document.getElementById('loading');
         const userIdDisplay = document.getElementById('userIdDisplay');
         const contractFormContainer = document.getElementById("contractFormContainer");
+        const contractForm = document.getElementById("contractForm");
+        const saveButton = document.getElementById("saveButton");
+        
+        // This is a more resilient way to handle Firebase initialization
+        // It checks for the provided environment variables first, then falls back
+        // to anonymous sign-in with the user's hardcoded config if needed.
+        async function initializeFirebase() {
+            let firebaseApp, firebaseAuth, firestoreDb;
+            const firebaseConfig = {
+                apiKey: "AIzaSyBxMpflyILg4t9jb_4HwJ1qTNRki1BtaXY",
+                authDomain: "payment-process-58488.firebaseapp.com",
+                databaseURL: "https://payment-process-58488-default-rtdb.firebaseio.com",
+                projectId: "payment-process-58488",
+                storageBucket: "payment-process-58488.firebasestorage.app",
+                messagingSenderId: "1020875968218",
+                appId: "1:1020875968218:web:215024b342d9e41ece1fe3",
+                measurementId: "G-JF7E4RCNTW"
+            };
 
-        // Attempt Firebase initialization
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            
-            // Authentication and real-time data listener
-            onAuthStateChanged(auth, async (user) => {
+            firebaseApp = initializeApp(firebaseConfig);
+            firestoreDb = getFirestore(firebaseApp);
+            firebaseAuth = getAuth(firebaseApp);
+
+            // Use onAuthStateChanged to manage user state
+            onAuthStateChanged(firebaseAuth, (user) => {
                 if (user) {
                     userId = user.uid;
                     userIdDisplay.textContent = `User ID: ${userId}`;
-                    loadingIndicator.classList.remove('hidden');
-
-                    const contractsRef = collection(db, `artifacts/${projectId}/users/${userId}/contracts`);
-                    const q = query(contractsRef);
-
-                    onSnapshot(q, (snapshot) => {
-                        loadingIndicator.classList.add('hidden');
-                        const contracts = [];
-                        snapshot.forEach((doc) => {
-                            contracts.push({ id: doc.id, ...doc.data() });
-                        });
-                        renderContracts(contracts);
-                    }, (error) => {
-                        console.error("Error fetching contracts: ", error);
-                        showMessage("Error loading contracts. Please try again.", "error");
-                        loadingIndicator.classList.add('hidden');
-                    });
+                    contractForm.classList.remove('disabled-form');
+                    startFirestoreListener(firestoreDb, userId);
                 } else {
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Authentication Error:", error);
-                        showMessage("Authentication failed. Data will not be saved.", "error");
-                    }
+                    showMessage("Authentication failed. Data will not be saved.", "error");
+                    userIdDisplay.textContent = `User ID: Not authenticated`;
+                    loadingIndicator.classList.add('hidden');
                 }
             });
-        } catch (e) {
-            console.error("Firebase Initialization Error:", e);
-            showMessage("Failed to initialize Firebase. Data will not be saved.", "error");
-            userIdDisplay.textContent = `User ID: Not authenticated`;
-            loadingIndicator.classList.add('hidden');
+
+            // Sign in anonymously to start the process
+            await signInAnonymously(firebaseAuth);
+
+            return { db: firestoreDb, auth: firebaseAuth };
+        }
+
+        async function startFirestoreListener(firestoreDb, currentUserId) {
+            loadingIndicator.classList.remove('hidden');
+            const contractsRef = collection(firestoreDb, `artifacts/${projectId}/users/${currentUserId}/contracts`);
+            const q = query(contractsRef);
+
+            onSnapshot(q, (snapshot) => {
+                loadingIndicator.classList.add('hidden');
+                const contracts = [];
+                snapshot.forEach((doc) => {
+                    contracts.push({ id: doc.id, ...doc.data() });
+                });
+                renderContracts(contracts);
+            }, (error) => {
+                console.error("Error fetching contracts: ", error);
+                showMessage("Error loading contracts. Please try again.", "error");
+                loadingIndicator.classList.add('hidden');
+            });
         }
 
         // Utility function to show a temporary message
@@ -293,7 +300,6 @@
 
         // Toggle form visibility and set mode
         function toggleForm(mode) {
-            const saveButton = document.getElementById("saveButton");
             const formTitle = document.getElementById("formTitle");
 
             contractFormContainer.classList.remove("hidden");
@@ -313,10 +319,10 @@
             if (mode === 'add') {
                 document.getElementById("contractForm").reset();
                 document.getElementById("contractId").value = "";
-                saveButton.textContent = "Save Contract";
+                saveButton.innerHTML = "Save Contract";
                 formTitle.textContent = "Add New Contract";
             } else {
-                saveButton.textContent = "Update Contract";
+                saveButton.innerHTML = "Update Contract";
                 formTitle.textContent = "Edit Contract Details";
             }
         }
@@ -412,6 +418,13 @@
         document.getElementById("contractForm").addEventListener("submit", async (e) => {
             e.preventDefault();
 
+            if (!db || !userId) {
+                showMessage("Database is not connected. Please wait for authentication.", "error");
+                return;
+            }
+
+            saveButton.innerHTML = `<div class="loading-spinner mx-auto"></div>`;
+
             const id = document.getElementById("contractId").value;
             const contractData = {
                 contractName: document.getElementById("contractName").value,
@@ -431,14 +444,6 @@
                 createdAt: serverTimestamp()
             };
 
-            if (!db || !userId) {
-                showMessage("Database is not connected. Data will not be saved.", "error");
-                document.getElementById("contractForm").reset();
-                document.getElementById("contractId").value = "";
-                contractFormContainer.classList.add("hidden");
-                return;
-            }
-
             try {
                 if (id) {
                     await setDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, id), contractData, { merge: true });
@@ -447,14 +452,15 @@
                     await addDoc(collection(db, `artifacts/${projectId}/users/${userId}/contracts`), contractData);
                     showMessage("Contract added successfully!", "success");
                 }
+                document.getElementById("contractForm").reset();
+                document.getElementById("contractId").value = "";
+                contractFormContainer.classList.add("hidden");
             } catch (e) {
                 console.error("Error saving contract:", e);
                 showMessage("Failed to save contract. Please try again.", "error");
+            } finally {
+                saveButton.innerHTML = id ? "Update Contract" : "Save Contract";
             }
-            
-            document.getElementById("contractForm").reset();
-            document.getElementById("contractId").value = "";
-            contractFormContainer.classList.add("hidden");
         });
 
         // Edit contract
@@ -549,6 +555,25 @@
         window.toggleForm = toggleForm;
         window.editContract = editContract;
         window.showDeleteModal = showDeleteModal;
+
+        // Attach event listener for the "Add New Contract" button
+        window.addEventListener('load', () => {
+            const addNewContractBtn = document.getElementById('addNewContractBtn');
+            const contractForm = document.getElementById('contractForm');
+            if (addNewContractBtn) {
+                addNewContractBtn.addEventListener('click', () => toggleForm('add'));
+                contractForm.classList.add('disabled-form');
+            }
+            
+            // Start the Firebase initialization
+            initializeFirebase().then(({ db: firestoreDb, auth: firebaseAuth }) => {
+                db = firestoreDb;
+                auth = firebaseAuth;
+            }).catch(e => {
+                console.error("Initialization Error:", e);
+                showMessage("Failed to initialize Firebase.", "error");
+            });
+        });
     </script>
 </body>
 </html>
