@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract Payment Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .advance { background-color: #ffebcd; }
+        .part { background-color: #add8e6; }
+        .final { background-color: #90ee90; }
+        .retention { background-color: #ffcccb; }
+        .variation { background-color: #dda0dd; }
+        .form-field-wrapper {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="message-box" class="fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform -translate-y-full duration-300"></div>
+
+    <div class="max-w-7xl mx-auto">
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-center text-gray-800 mb-6">Contract Payment Tracker</h2>
+        <div id="userIdDisplay" class="text-center text-gray-600 text-sm mb-4"></div>
+        
+        <div class="flex flex-col sm:flex-row justify-center sm:justify-start space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <button onclick="toggleForm('add')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+                Add New Contract
+            </button>
+        </div>
+
+        <div id="contractFormContainer" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-xl mb-8">
+            <h3 class="text-2xl font-bold text-center text-blue-600 mb-6" id="formTitle">Add Contract Details</h3>
+            <form id="contractForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <input type="hidden" id="contractId">
+                
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="text" placeholder="Contract Name" id="contractName" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="text" placeholder="Contact Number" id="contactNumber" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="text" placeholder="Contractor" id="contractor" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="number" placeholder="Contract Price" id="contractPrice" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="number" placeholder="P. Sum Price" id="psumPrice" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <label for="hasContingencies" class="text-gray-700 font-medium mb-1">Has Contingencies?</label>
+                    <select id="hasContingencies" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+                
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="number" placeholder="Contingencies (Calculated)" id="contingencies" readonly class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full bg-gray-100">
+                </div>
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <input type="number" placeholder="Advance Payment (Calculated)" id="advancePayment" readonly class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full bg-gray-100">
+                </div>
+
+                <!-- Fields for both adding and editing -->
+                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
+                    <select id="officer" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                        <option value="">Select Relevant Officer</option>
+                        <option value="Eng. Maduara Dias">Eng. Maduara Dias</option>
+                        <option value="Eng. YSJ Kumaranayake">Eng. YSJ Kumaranayake</option>
+                    </select>
+                </div>
+                
+                <!-- Fields only for editing -->
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <input type="number" placeholder="Part Payment" id="partPayment" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <input type="number" placeholder="Final Payment" id="finalPayment" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <input type="number" placeholder="Retention" id="retention" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <input type="number" placeholder="Variation" id="variation" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                </div>
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <select id="paymentProcess" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                        <option value="">Select Payment Process</option>
+                        <option value="Advance">Advance Payment</option>
+                        <option value="Part">Part Payment</option>
+                        <option value="Final">Final Payment</option>
+                        <option value="Retention">Retention</option>
+                        <option value="Variation">Variation</option>
+                    </select>
+                </div>
+                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
+                    <select id="status" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                        <option value="Processing">Processing</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Blocked">Blocked</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+
+                <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center">
+                    <button id="saveButton" type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+                        Save Contract
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+            <h3 class="text-2xl font-bold text-center text-gray-800 mb-6">Filters & Legend</h3>
+            <div id="filters" class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
+                <input type="text" id="searchContractor" placeholder="Search by Contractor" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="filterStatus" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Filter by Status</option>
+                    <option value="Processing">Processing</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Blocked">Blocked</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            
+            <div id="colorLegend" class="flex flex-wrap justify-center gap-4 text-sm sm:text-base font-semibold text-gray-700">
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#ffebcd]"></div><span>Advance Payment</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#add8e6]"></div><span>Part Payment</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#90ee90]"></div><span>Final Payment</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#ffcccb]"></div><span>Retention</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#dda0dd]"></div><span>Variation</span></div>
+            </div>
+        </div>
+        
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl mt-8 overflow-x-auto">
+            <h3 class="text-2xl font-bold text-center text-gray-800 mb-6">Contracts Table</h3>
+            <div id="loading" class="flex justify-center items-center py-8 hidden">
+                <div class="loading-spinner"></div>
+                <span class="ml-4 text-gray-500">Loading contracts...</span>
+            </div>
+            <table id="contractsTable" class="min-w-full bg-white rounded-xl overflow-hidden">
+                <thead class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
+                    <tr>
+                        <th class="py-3 px-6 text-left">Contract Name</th>
+                        <th class="py-3 px-6 text-left">Contact No.</th>
+                        <th class="py-3 px-6 text-left">Contractor</th>
+                        <th class="py-3 px-6 text-right">Price</th>
+                        <th class="py-3 px-6 text-right">P. Sum</th>
+                        <th class="py-3 px-6 text-right">Contingency</th>
+                        <th class="py-3 px-6 text-right">Advance</th>
+                        <th class="py-3 px-6 text-right">Part</th>
+                        <th class="py-3 px-6 text-right">Final</th>
+                        <th class="py-3 px-6 text-right">Retention</th>
+                        <th class="py-3 px-6 text-right">Variation</th>
+                        <th class="py-3 px-6 text-left">Officer</th>
+                        <th class="py-3 px-6 text-left">Payment Process</th>
+                        <th class="py-3 px-6 text-left">Status</th>
+                        <th class="py-3 px-6 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-600 text-sm font-light">
+                </tbody>
+            </table>
+            <p id="noContractsMessage" class="text-center text-gray-500 mt-4 hidden"></p>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex justify-center items-center p-4">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
+            <h4 class="text-xl font-bold mb-4">Confirm Deletion</h4>
+            <p class="mb-6">Are you sure you want to delete this contract?</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirmDeleteBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Delete</button>
+                <button id="cancelDeleteBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set Firebase debug logging
+        setLogLevel('debug');
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const projectId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        let userId = null;
+        let formMode = 'add'; // 'add' or 'edit'
+        let contractIdToDelete = null;
+
+        const contractsTableBody = document.querySelector("#contractsTable tbody");
+        const noContractsMsg = document.getElementById('noContractsMessage');
+        const loadingIndicator = document.getElementById('loading');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+
+        // Authentication and real-time data listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdDisplay.textContent = `User ID: ${userId}`;
+                loadingIndicator.classList.remove('hidden');
+
+                const contractsRef = collection(db, `artifacts/${projectId}/users/${userId}/contracts`);
+                const q = query(contractsRef);
+
+                onSnapshot(q, (snapshot) => {
+                    loadingIndicator.classList.add('hidden');
+                    const contracts = [];
+                    snapshot.forEach((doc) => {
+                        contracts.push({ id: doc.id, ...doc.data() });
+                    });
+                    renderContracts(contracts);
+                }, (error) => {
+                    console.error("Error fetching contracts: ", error);
+                    showMessage("Error loading contracts. Please try again.", "error");
+                    loadingIndicator.classList.add('hidden');
+                });
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    showMessage("Authentication failed. Some features may not work.", "error");
+                }
+            }
+        });
+
+        // Utility function to show a temporary message
+        function showMessage(message, type = 'success') {
+            const msgBox = document.getElementById('message-box');
+            msgBox.textContent = message;
+            msgBox.className = `fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform duration-300 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} translate-y-0`;
+
+            setTimeout(() => {
+                msgBox.className = `fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform -translate-y-full duration-300`;
+            }, 3000);
+        }
+
+        // Toggle form visibility and set mode
+        function toggleForm(mode) {
+            const formContainer = document.getElementById("contractFormContainer");
+            const saveButton = document.getElementById("saveButton");
+            const formTitle = document.getElementById("formTitle");
+
+            formMode = mode;
+            formContainer.classList.remove("hidden");
+
+            // Show/hide form fields based on mode
+            const formFields = document.querySelectorAll('.form-field-wrapper');
+            formFields.forEach(field => {
+                if (mode === 'add' && field.dataset.formMode === 'add') {
+                    field.classList.remove('hidden');
+                } else if (mode === 'edit' && field.dataset.formModeEdit === 'true') {
+                    field.classList.remove('hidden');
+                } else {
+                    field.classList.add('hidden');
+                }
+            });
+
+            if (mode === 'add') {
+                document.getElementById("contractForm").reset();
+                document.getElementById("contractId").value = "";
+                saveButton.textContent = "Save Contract";
+                formTitle.textContent = "Add New Contract";
+            } else {
+                saveButton.textContent = "Update Contract";
+                formTitle.textContent = "Edit Contract Details";
+            }
+        }
+
+        // Calculate and update contingency and advance payment values
+        function updateCalculatedValues() {
+            const contractPriceInput = document.getElementById("contractPrice");
+            const contractPrice = parseFloat(contractPriceInput.value) || 0;
+            const hasContingencies = document.getElementById("hasContingencies").value === "Yes";
+
+            const contingencies = hasContingencies ? (contractPrice * 0.10) : 0;
+            const advancePayment = contractPrice * 0.20;
+
+            document.getElementById("contingencies").value = contingencies.toFixed(2);
+            document.getElementById("advancePayment").value = advancePayment.toFixed(2);
+        }
+
+        // Get CSS class based on payment process
+        function getProcessClass(process) {
+            switch(process) {
+                case 'Advance': return 'advance';
+                case 'Part': return 'part';
+                case 'Final': return 'final';
+                case 'Retention': return 'retention';
+                case 'Variation': return 'variation';
+                default: return '';
+            }
+        }
+
+        // Render contracts table
+        function renderContracts(contracts) {
+            contractsTableBody.innerHTML = '';
+            
+            if (contracts.length === 0) {
+                noContractsMsg.classList.remove('hidden');
+                noContractsMsg.textContent = 'No contracts found.';
+                return;
+            } else {
+                noContractsMsg.classList.add('hidden');
+            }
+
+            contracts.forEach(contract => {
+                const row = contractsTableBody.insertRow();
+                row.id = `row-${contract.id}`;
+                row.className = getProcessClass(contract.paymentProcess);
+
+                row.innerHTML = `
+                    <td data-label="Contract Name" class="py-3 px-6">${contract.contractName}</td>
+                    <td data-label="Contact No." class="py-3 px-6">${contract.contactNumber}</td>
+                    <td data-label="Contractor" class="py-3 px-6">${contract.contractor}</td>
+                    <td data-label="Price" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.contractPrice || 0).toFixed(2)}</td>
+                    <td data-label="P. Sum" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.psumPrice || 0).toFixed(2)}</td>
+                    <td data-label="Contingency" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.contingencies || 0).toFixed(2)}</td>
+                    <td data-label="Advance" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.advancePayment || 0).toFixed(2)}</td>
+                    <td data-label="Part" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.partPayment || 0).toFixed(2)}</td>
+                    <td data-label="Final" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.finalPayment || 0).toFixed(2)}</td>
+                    <td data-label="Retention" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.retention || 0).toFixed(2)}</td>
+                    <td data-label="Variation" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.variation || 0).toFixed(2)}</td>
+                    <td data-label="Officer" class="py-3 px-6">${contract.officer}</td>
+                    <td data-label="Payment Process" class="py-3 px-6">${contract.paymentProcess}</td>
+                    <td data-label="Status" class="py-3 px-6">${contract.status}</td>
+                    <td data-label="Actions" class="py-3 px-6 text-center whitespace-nowrap">
+                        <button onclick="editContract('${contract.id}')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-lg mr-2">Edit</button>
+                        <button onclick="showDeleteModal('${contract.id}')" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-lg">Delete</button>
+                    </td>
+                `;
+            });
+            filterTable(); // Apply filters after rendering
+        }
+
+        // Filter and search table
+        function filterTable() {
+            const contractorSearch = document.getElementById('searchContractor').value.toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value;
+            const rows = document.querySelectorAll("#contractsTable tbody tr");
+
+            rows.forEach(row => {
+                const contractor = row.cells[2].textContent.toLowerCase();
+                const status = row.cells[13].textContent;
+
+                const contractorMatch = contractor.includes(contractorSearch);
+                const statusMatch = statusFilter === "" || status === statusFilter;
+
+                if (contractorMatch && statusMatch) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Handle form submission
+        document.getElementById("contractForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById("contractId").value;
+            const contractData = {
+                contractName: document.getElementById("contractName").value,
+                contactNumber: document.getElementById("contactNumber").value,
+                contractor: document.getElementById("contractor").value,
+                contractPrice: parseFloat(document.getElementById("contractPrice").value) || 0,
+                psumPrice: parseFloat(document.getElementById("psumPrice").value) || 0,
+                contingencies: parseFloat(document.getElementById("contingencies").value) || 0,
+                advancePayment: parseFloat(document.getElementById("advancePayment").value) || 0,
+                partPayment: parseFloat(document.getElementById("partPayment").value) || 0,
+                finalPayment: parseFloat(document.getElementById("finalPayment").value) || 0,
+                retention: parseFloat(document.getElementById("retention").value) || 0,
+                variation: parseFloat(document.getElementById("variation").value) || 0,
+                officer: document.getElementById("officer").value,
+                paymentProcess: document.getElementById("paymentProcess").value,
+                status: document.getElementById("status").value,
+                createdAt: serverTimestamp()
+            };
+
+            try {
+                if (id) {
+                    await setDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, id), contractData, { merge: true });
+                    showMessage("Contract updated successfully!", "success");
+                } else {
+                    await addDoc(collection(db, `artifacts/${projectId}/users/${userId}/contracts`), contractData);
+                    showMessage("Contract added successfully!", "success");
+                }
+            } catch (e) {
+                console.error("Error saving contract:", e);
+                showMessage("Failed to save contract. Please try again.", "error");
+            }
+            
+            document.getElementById("contractForm").reset();
+            document.getElementById("contractId").value = "";
+            document.getElementById("contractFormContainer").classList.add("hidden");
+        });
+
+        // Edit contract
+        function editContract(id) {
+            const tableRows = document.querySelectorAll("#contractsTable tbody tr");
+            const contractRow = Array.from(tableRows).find(row => row.id === `row-${id}`);
+            
+            if (!contractRow) return;
+
+            toggleForm('edit');
+            
+            const data = {};
+            Array.from(contractRow.cells).forEach(cell => {
+                const label = cell.dataset.label;
+                const value = cell.textContent.trim();
+                if (label === "Contract Name") data.contractName = value;
+                if (label === "Contact No.") data.contactNumber = value;
+                if (label === "Contractor") data.contractor = value;
+                if (label === "Price") data.contractPrice = parseFloat(value.replace('Rs. ', ''));
+                if (label === "P. Sum") data.psumPrice = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Contingency") data.contingencies = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Advance") data.advancePayment = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Part") data.partPayment = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Final") data.finalPayment = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Retention") data.retention = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Variation") data.variation = parseFloat(value.replace('Rs. ', ''));
+                if (label === "Officer") data.officer = value;
+                if (label === "Payment Process") data.paymentProcess = value;
+                if (label === "Status") data.status = value;
+            });
+            
+            document.getElementById("contractId").value = id;
+            document.getElementById("contractName").value = data.contractName;
+            document.getElementById("contactNumber").value = data.contactNumber;
+            document.getElementById("contractor").value = data.contractor;
+            document.getElementById("contractPrice").value = data.contractPrice;
+            document.getElementById("psumPrice").value = data.psumPrice;
+            document.getElementById("partPayment").value = data.partPayment;
+            document.getElementById("finalPayment").value = data.finalPayment;
+            document.getElementById("retention").value = data.retention;
+            document.getElementById("variation").value = data.variation;
+            document.getElementById("officer").value = data.officer;
+            document.getElementById("paymentProcess").value = data.paymentProcess;
+            document.getElementById("status").value = data.status;
+
+            document.getElementById("hasContingencies").value = data.contingencies > 0 ? "Yes" : "No";
+            document.getElementById("contingencies").value = data.contingencies;
+            document.getElementById("advancePayment").value = data.advancePayment;
+        }
+
+        // Delete confirmation modal functions
+        function showDeleteModal(id) {
+            contractIdToDelete = id;
+            document.getElementById("deleteModal").classList.remove("hidden");
+        }
+
+        function hideDeleteModal() {
+            contractIdToDelete = null;
+            document.getElementById("deleteModal").classList.add("hidden");
+        }
+
+        // Delete contract after confirmation
+        document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+            if (contractIdToDelete && userId) {
+                try {
+                    await deleteDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, contractIdToDelete));
+                    showMessage("Contract deleted successfully!", "success");
+                } catch (e) {
+                    console.error("Error deleting contract: ", e);
+                    showMessage("Failed to delete contract. Please try again.", "error");
+                }
+            }
+            hideDeleteModal();
+        });
+
+        document.getElementById("cancelDeleteBtn").addEventListener("click", hideDeleteModal);
+
+        // Add event listeners for dynamic calculations
+        document.getElementById("contractPrice").addEventListener("input", updateCalculatedValues);
+        document.getElementById("hasContingencies").addEventListener("change", updateCalculatedValues);
+
+        // Add event listeners for filtering
+        document.getElementById("searchContractor").addEventListener("input", filterTable);
+        document.getElementById("filterStatus").addEventListener("change", filterTable);
+        
+        // Expose functions to the global scope so they can be called from onclick attributes
+        window.toggleForm = toggleForm;
+        window.editContract = editContract;
+        window.showDeleteModal = showDeleteModal;
+    </script>
+</body>
+</html>
