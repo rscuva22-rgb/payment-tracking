@@ -208,16 +208,20 @@
         // Set Firebase debug logging
         setLogLevel('debug');
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Check if environment variables are available, otherwise use placeholders
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "dummy-api-key",
+            authDomain: "dummy-auth-domain",
+            projectId: "dummy-project-id",
+            storageBucket: "dummy-storage-bucket",
+            messagingSenderId: "dummy-messaging-sender-id",
+            appId: "dummy-app-id"
+        };
         const projectId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        
+        let db = null;
+        let auth = null;
         let userId = null;
         let formMode = 'add'; // 'add' or 'edit'
         let contractIdToDelete = null;
@@ -226,42 +230,55 @@
         const noContractsMsg = document.getElementById('noContractsMessage');
         const loadingIndicator = document.getElementById('loading');
         const userIdDisplay = document.getElementById('userIdDisplay');
+        const contractFormContainer = document.getElementById("contractFormContainer");
 
-        // Authentication and real-time data listener
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                userIdDisplay.textContent = `User ID: ${userId}`;
-                loadingIndicator.classList.remove('hidden');
+        // Attempt Firebase initialization
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Authentication and real-time data listener
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    userIdDisplay.textContent = `User ID: ${userId}`;
+                    loadingIndicator.classList.remove('hidden');
 
-                const contractsRef = collection(db, `artifacts/${projectId}/users/${userId}/contracts`);
-                const q = query(contractsRef);
+                    const contractsRef = collection(db, `artifacts/${projectId}/users/${userId}/contracts`);
+                    const q = query(contractsRef);
 
-                onSnapshot(q, (snapshot) => {
-                    loadingIndicator.classList.add('hidden');
-                    const contracts = [];
-                    snapshot.forEach((doc) => {
-                        contracts.push({ id: doc.id, ...doc.data() });
+                    onSnapshot(q, (snapshot) => {
+                        loadingIndicator.classList.add('hidden');
+                        const contracts = [];
+                        snapshot.forEach((doc) => {
+                            contracts.push({ id: doc.id, ...doc.data() });
+                        });
+                        renderContracts(contracts);
+                    }, (error) => {
+                        console.error("Error fetching contracts: ", error);
+                        showMessage("Error loading contracts. Please try again.", "error");
+                        loadingIndicator.classList.add('hidden');
                     });
-                    renderContracts(contracts);
-                }, (error) => {
-                    console.error("Error fetching contracts: ", error);
-                    showMessage("Error loading contracts. Please try again.", "error");
-                    loadingIndicator.classList.add('hidden');
-                });
-            } else {
-                try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
+                } else {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Authentication Error:", error);
+                        showMessage("Authentication failed. Data will not be saved.", "error");
                     }
-                } catch (error) {
-                    console.error("Authentication Error:", error);
-                    showMessage("Authentication failed. Some features may not work.", "error");
                 }
-            }
-        });
+            });
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+            showMessage("Failed to initialize Firebase. Data will not be saved.", "error");
+            userIdDisplay.textContent = `User ID: Not authenticated`;
+            loadingIndicator.classList.add('hidden');
+        }
 
         // Utility function to show a temporary message
         function showMessage(message, type = 'success') {
@@ -276,12 +293,10 @@
 
         // Toggle form visibility and set mode
         function toggleForm(mode) {
-            const formContainer = document.getElementById("contractFormContainer");
             const saveButton = document.getElementById("saveButton");
             const formTitle = document.getElementById("formTitle");
 
-            formMode = mode;
-            formContainer.classList.remove("hidden");
+            contractFormContainer.classList.remove("hidden");
 
             // Show/hide form fields based on mode
             const formFields = document.querySelectorAll('.form-field-wrapper');
@@ -416,6 +431,14 @@
                 createdAt: serverTimestamp()
             };
 
+            if (!db || !userId) {
+                showMessage("Database is not connected. Data will not be saved.", "error");
+                document.getElementById("contractForm").reset();
+                document.getElementById("contractId").value = "";
+                contractFormContainer.classList.add("hidden");
+                return;
+            }
+
             try {
                 if (id) {
                     await setDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, id), contractData, { merge: true });
@@ -431,7 +454,7 @@
             
             document.getElementById("contractForm").reset();
             document.getElementById("contractId").value = "";
-            document.getElementById("contractFormContainer").classList.add("hidden");
+            contractFormContainer.classList.add("hidden");
         });
 
         // Edit contract
@@ -495,6 +518,11 @@
 
         // Delete contract after confirmation
         document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+            if (!db || !userId) {
+                showMessage("Database is not connected. Cannot delete contract.", "error");
+                hideDeleteModal();
+                return;
+            }
             if (contractIdToDelete && userId) {
                 try {
                     await deleteDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, contractIdToDelete));
