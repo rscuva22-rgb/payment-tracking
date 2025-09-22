@@ -465,6 +465,7 @@
             let editingId = null;
             let unsubscribe = null;
             let deleteId = null; // Store ID for delete modal
+            let isAuthReady = false;
 
             // Helper functions
             function formToObject(form) {
@@ -631,17 +632,16 @@
             }
 
             function startContactsListener() {
-                // Add an explicit check to ensure the user is authenticated before attempting to access Firestore
-                const user = auth.currentUser;
-                if (!user) {
-                    console.warn("Attempted to start Firestore listener without an authenticated user.");
-                    return; 
+                if (!isAuthReady) {
+                    console.warn("Auth is not ready. Aborting Firestore listener start.");
+                    return;
                 }
 
                 if (unsubscribe) {
                     unsubscribe();
                 }
 
+                console.log("Starting Firestore listener for contacts...");
                 const currentProcess = filterCurrentProcess.value;
                 const paymentStatus = filterPaymentStatus.value;
                 const searchTerm = searchContactNumber.value.trim();
@@ -662,11 +662,12 @@
                 const contactQuery = query(collection(db, `artifacts/${appId}/public/data/contacts`), ...filters);
                 
                 unsubscribe = onSnapshot(contactQuery, (snapshot) => {
+                    console.log("Firestore data received. Docs:", snapshot.docs.length);
                     const list = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
                     renderContacts(list);
                 }, (error) => {
                     console.error("Error listening for real-time updates: ", error);
-                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Error loading data. Please check your connection.</td></tr>`;
+                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Error loading data. Please check your connection or permissions.</td></tr>`;
                 });
             }
 
@@ -712,12 +713,20 @@
                 searchContactNumber.value = '';
                 startContactsListener();
             });
+            
+            const loadingTimeout = setTimeout(() => {
+                if (!isAuthReady) {
+                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Connection timed out. Please check your internet connection and refresh the page.</td></tr>`;
+                }
+            }, 10000); // 10 seconds timeout
 
             // Initial Auth State Check
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    const userId = user.uid;
-                    userIdDisplay.textContent = `User ID: ${userId}`;
+                    console.log("Authentication successful. User ID:", user.uid);
+                    isAuthReady = true;
+                    clearTimeout(loadingTimeout);
+                    userIdDisplay.textContent = `User ID: ${user.uid}`;
                     startContactsListener();
                 } else {
                     try {
