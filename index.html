@@ -432,6 +432,8 @@
         import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, deleteDoc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM content loaded. Initializing app.");
+            
             // Firebase Initialization and Auth
             const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -720,6 +722,7 @@
                     } catch (error) {
                         console.error("Auth error:", error);
                         userIdDisplay.textContent = "Authentication failed.";
+                        contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Authentication failed. Please refresh the page.</td></tr>`;
                     }
                 }
             });
