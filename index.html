@@ -3,576 +3,724 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contract Payment Tracker</title>
+    <title>Contact Payment Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+            background-color: #f1f5f9; /* slate-100 */
         }
-        .advance { background-color: #ffebcd; }
-        .part { background-color: #add8e6; }
-        .final { background-color: #90ee90; }
-        .retention { background-color: #ffcccb; }
-        .variation { background-color: #dda0dd; }
-        .form-field-wrapper {
-            transition: opacity 0.3s ease-in-out;
+        .container {
+            max-width: 95%;
+        }
+        .form-input {
+            @apply w-full p-3 bg-blue-50 border border-blue-400 rounded-xl shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200;
+        }
+        .form-label {
+            @apply block text-sm font-medium text-slate-700 mb-1;
+        }
+        .table-header-cell {
+            @apply p-4 text-left font-bold text-slate-700 bg-slate-200 border-r border-slate-300;
         }
         .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4f46e5; /* indigo-600 */
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
-        .disabled-form {
-            opacity: 0.5;
-            pointer-events: none;
+        /* Style for the nested list in the table */
+        .table-payment-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .table-payment-list li::before {
+            content: "•";
+            color: #4f46e5; /* indigo-600 */
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        th, td {
+            border-color: #e2e8f0;
+        }
+        th:first-child {
+            border-top-left-radius: 0.75rem;
+        }
+        th:last-child {
+            border-top-right-radius: 0.75rem;
+        }
+        
+        /* New styles for a more modern form */
+        .form-section {
+            @apply bg-white p-6 rounded-2xl shadow-lg;
+        }
+        .form-section-title {
+            @apply text-xl font-bold text-slate-700 mb-4;
+        }
+
+        /* Custom text shadow for modern look */
+        .text-shadow-lg {
+            text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
-<body class="p-4 sm:p-8">
+<body class="bg-slate-100 antialiased">
+    <!-- Main Application Container -->
+    <div id="main-container" class="container mx-auto px-4 py-12">
+        <header class="bg-white rounded-3xl shadow-2xl p-8 mb-12 text-center">
+            <h1 class="text-4xl font-bold tracking-tight text-shadow-lg">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-blue-600">
+                    Contact Payment Database
+                </span>
+            </h1>
+            <p class="text-slate-500 mt-4 text-lg">Your data is synced in real-time with Firebase.</p>
+        </header>
 
-    <div id="message-box" class="fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform -translate-y-full duration-300"></div>
-
-    <div class="max-w-7xl mx-auto">
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-center text-gray-800 mb-6">Contract Payment Tracker</h2>
-        <div id="userIdDisplay" class="text-center text-gray-600 text-sm mb-4"></div>
+        <!-- User ID Display -->
+        <div id="user-info" class="bg-indigo-50 p-4 rounded-xl mb-8 flex items-center justify-center">
+            <span id="user-id-display" class="font-mono text-xs text-indigo-700"></span>
+        </div>
         
-        <div class="flex flex-col sm:flex-row justify-center sm:justify-start space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
-            <button id="addNewContractBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
-                Add New Contract
+        <!-- Button to show form -->
+        <div class="flex justify-center mb-8">
+            <button id="show-form-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                Add New Contact
             </button>
         </div>
 
-        <div id="contractFormContainer" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-xl mb-8">
-            <h3 class="text-2xl font-bold text-center text-blue-600 mb-6" id="formTitle">Add Contract Details</h3>
-            <form id="contractForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <input type="hidden" id="contractId">
-                
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="text" placeholder="Contract Name" id="contractName" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="text" placeholder="Contact Number" id="contactNumber" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="text" placeholder="Contractor" id="contractor" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="number" placeholder="Contract Price" id="contractPrice" required class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="number" placeholder="P. Sum Price" id="psumPrice" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+        <!-- Add/Edit Contact Form -->
+        <div id="contact-form-container" class="bg-gradient-to-br from-indigo-100 to-white rounded-3xl shadow-2xl p-8 mb-12 hidden">
+            <h2 id="form-title" class="text-3xl font-semibold text-slate-800 mb-6">Add New Contact</h2>
+
+            <!-- Success/Error Message -->
+            <div id="message-container" class="hidden p-4 rounded-xl mb-6 text-sm font-medium" role="alert"></div>
+
+            <form id="contact-form" class="space-y-8">
+                <!-- General Details Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">General Details</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div>
+                            <label for="contactName" class="form-label">Contact Name</label>
+                            <input type="text" id="contactName" name="contactName" class="form-input" required>
+                        </div>
+                        <div>
+                            <label for="contactNumber" class="form-label">Contact Number</label>
+                            <input type="text" id="contactNumber" name="contactNumber" class="form-input">
+                        </div>
+                        <div>
+                            <label for="contractor" class="form-label">Contractor</label>
+                            <input type="text" id="contractor" name="contractor" class="form-input">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <label for="hasContingencies" class="text-gray-700 font-medium mb-1">Has Contingencies?</label>
-                    <select id="hasContingencies" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                        <option value="No">No</option>
-                        <option value="Yes">Yes</option>
-                    </select>
-                </div>
-                
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="number" placeholder="Contingencies (Calculated)" id="contingencies" readonly class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full bg-gray-100">
-                </div>
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <input type="number" placeholder="Advance Payment (Calculated)" id="advancePayment" readonly class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full bg-gray-100">
-                </div>
-
-                <!-- Fields for both adding and editing -->
-                <div class="form-field-wrapper" data-form-mode="add" data-form-mode-edit="true">
-                    <select id="officer" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                        <option value="">Select Relevant Officer</option>
-                        <option value="Eng. Maduara Dias">Eng. Maduara Dias</option>
-                        <option value="Eng. YSJ Kumaranayake">Eng. YSJ Kumaranayake</option>
-                    </select>
-                </div>
-                
-                <!-- Fields only for editing -->
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <input type="number" placeholder="Part Payment" id="partPayment" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <input type="number" placeholder="Final Payment" id="finalPayment" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <input type="number" placeholder="Retention" id="retention" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <input type="number" placeholder="Variation" id="variation" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                </div>
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <select id="paymentProcess" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                        <option value="">Select Payment Process</option>
-                        <option value="Advance">Advance Payment</option>
-                        <option value="Part">Part Payment</option>
-                        <option value="Final">Final Payment</option>
-                        <option value="Retention">Retention</option>
-                        <option value="Variation">Variation</option>
-                    </select>
-                </div>
-                <div class="form-field-wrapper hidden" data-form-mode-edit="true">
-                    <select id="status" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-                        <option value="Processing">Processing</option>
-                        <option value="On Hold">On Hold</option>
-                        <option value="Blocked">Blocked</option>
-                        <option value="Completed">Completed</option>
-                    </select>
+                <!-- Contract Prices Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Contract Prices</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div>
+                            <label for="contactPrice" class="form-label">Contact Price</label>
+                            <input type="number" step="0.01" id="contactPrice" name="contactPrice" class="form-input">
+                        </div>
+                        <div>
+                            <label for="pSumPrice" class="form-label">P.Sum Price</label>
+                            <input type="number" step="0.01" id="pSumPrice" name="pSumPrice" class="form-input">
+                        </div>
+                        <div>
+                            <label for="contingencies" class="form-label">Contingencies</label>
+                            <input type="number" step="0.01" id="contingencies" name="contingencies" class="form-input">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="col-span-1 md:col-span-2 lg:col-span-3 text-center">
-                    <button id="saveButton" type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
-                        Save Contract
+                <!-- Payment Details Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Payment Details</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <!-- Advance Payment -->
+                        <div class="space-y-4">
+                            <p class="font-bold text-lg text-slate-800">Advance Payment</p>
+                            <div>
+                                <label for="advancePaymentAmount" class="form-label">Amount</label>
+                                <input type="number" step="0.01" id="advancePaymentAmount" name="advancePaymentAmount" class="form-input">
+                            </div>
+                            <div>
+                                <label for="advancePaymentReceivedDate" class="form-label">Received Date</label>
+                                <input type="date" id="advancePaymentReceivedDate" name="advancePaymentReceivedDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="advancePaymentCompletedDate" class="form-label">Completed Date</label>
+                                <input type="date" id="advancePaymentCompletedDate" name="advancePaymentCompletedDate" class="form-input">
+                            </div>
+                        </div>
+                        
+                        <!-- Part Payment -->
+                        <div class="space-y-4">
+                            <p class="font-bold text-lg text-slate-800">Part Payment</p>
+                            <div>
+                                <label for="partPaymentAmount" class="form-label">Amount</label>
+                                <input type="number" step="0.01" id="partPaymentAmount" name="partPaymentAmount" class="form-input">
+                            </div>
+                            <div>
+                                <label for="partPaymentReceivedDate" class="form-label">Received Date</label>
+                                <input type="date" id="partPaymentReceivedDate" name="partPaymentReceivedDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="partPaymentCompletedDate" class="form-label">Completed Date</label>
+                                <input type="date" id="partPaymentCompletedDate" name="partPaymentCompletedDate" class="form-input">
+                            </div>
+                        </div>
+
+                        <!-- Final Payment -->
+                        <div class="space-y-4">
+                            <p class="font-bold text-lg text-slate-800">Final Payment</p>
+                            <div>
+                                <label for="finalPaymentAmount" class="form-label">Amount</label>
+                                <input type="number" step="0.01" id="finalPaymentAmount" name="finalPaymentAmount" class="form-input">
+                            </div>
+                            <div>
+                                <label for="finalPaymentReceivedDate" class="form-label">Received Date</label>
+                                <input type="date" id="finalPaymentReceivedDate" name="finalPaymentReceivedDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="finalPaymentCompletedDate" class="form-label">Completed Date</label>
+                                <input type="date" id="finalPaymentCompletedDate" name="finalPaymentCompletedDate" class="form-input">
+                            </div>
+                        </div>
+
+                        <!-- Variation -->
+                        <div class="space-y-4">
+                            <p class="font-bold text-lg text-slate-800">Variation</p>
+                            <div>
+                                <label for="variationAmount" class="form-label">Amount</label>
+                                <input type="number" step="0.01" id="variationAmount" name="variationAmount" class="form-input">
+                            </div>
+                            <div>
+                                <label for="variationReceivedDate" class="form-label">Received Date</label>
+                                <input type="date" id="variationReceivedDate" name="variationReceivedDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="variationCompletedDate" class="form-label">Completed Date</label>
+                                <input type="date" id="variationCompletedDate" name="variationCompletedDate" class="form-input">
+                            </div>
+                        </div>
+
+                        <!-- Retention -->
+                        <div class="space-y-4">
+                            <p class="font-bold text-lg text-slate-800">Retention</p>
+                            <div>
+                                <label for="retentionAmount" class="form-label">Amount</label>
+                                <input type="number" step="0.01" id="retentionAmount" name="retentionAmount" class="form-input">
+                            </div>
+                            <div>
+                                <label for="retentionReceivedDate" class="form-label">Received Date</label>
+                                <input type="date" id="retentionReceivedDate" name="retentionReceivedDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="retentionCompletedDate" class="form-label">Completed Date</label>
+                                <input type="date" id="retentionCompletedDate" name="retentionCompletedDate" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Additional Information Section -->
+                <div class="form-section">
+                    <h3 class="form-section-title">Additional Information</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                            <label for="relevantOfficer" class="form-label">Relevant Officer</label>
+                            <select id="relevantOfficer" name="relevantOfficer" class="form-input">
+                                <option value="Eng.Madura Dias">Eng.Madura Dias</option>
+                                <option value="Eng.Y S J Kumaranayake">Eng.Y S J Kumaranayake</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="paymentStatus" class="form-label">Payment Status</label>
+                            <select id="paymentStatus" name="paymentStatus" class="form-input">
+                                <option value="Processing">Processing</option>
+                                <option value="On hold">On hold</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Blocked">Blocked</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="currentPaymentProcess" class="form-label">Current Payment Process</label>
+                            <select id="currentPaymentProcess" name="currentPaymentProcess" class="form-input">
+                                <option value="N/A">N/A</option>
+                                <option value="Advance Payment">Advance Payment</option>
+                                <option value="Part Payment">Part Payment</option>
+                                <option value="Final Payment">Final Payment</option>
+                                <option value="Variation">Variation</option>
+                                <option value="Retention">Retention</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea id="notes" name="notes" rows="3" class="form-input"></textarea>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-center space-x-4">
+                    <button type="submit" id="submit-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                        Add Contact
+                    </button>
+                    <button type="button" id="clear-form-btn" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                        Clear Form
+                    </button>
+                    <button type="button" id="cancel-form-btn" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                        Cancel
                     </button>
                 </div>
             </form>
         </div>
-
-        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
-            <h3 class="text-2xl font-bold text-center text-gray-800 mb-6">Filters & Legend</h3>
-            <div id="filters" class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
-                <input type="text" id="searchContractor" placeholder="Search by Contractor" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <select id="filterStatus" class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Filter by Status</option>
-                    <option value="Processing">Processing</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Blocked">Blocked</option>
-                    <option value="Completed">Completed</option>
-                </select>
-            </div>
-            
-            <div id="colorLegend" class="flex flex-wrap justify-center gap-4 text-sm sm:text-base font-semibold text-gray-700">
-                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#ffebcd]"></div><span>Advance Payment</span></div>
-                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#add8e6]"></div><span>Part Payment</span></div>
-                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#90ee90]"></div><span>Final Payment</span></div>
-                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#ffcccb]"></div><span>Retention</span></div>
-                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-md border border-gray-500 bg-[#dda0dd]"></div><span>Variation</span></div>
+        
+        <!-- Custom Confirmation Modal -->
+        <div id="confirm-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+            <div class="flex items-center justify-center min-h-screen px-4 py-8">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
+                <div class="bg-white rounded-lg p-6 max-w-sm mx-auto z-50 shadow-lg">
+                    <p id="confirm-message" class="text-lg font-semibold mb-4 text-slate-800">Are you sure you want to delete this contact?</p>
+                    <div class="flex justify-end space-x-4">
+                        <button id="confirm-no-btn" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 font-medium hover:bg-gray-300 transition-colors">Cancel</button>
+                        <button id="confirm-yes-btn" class="px-4 py-2 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">Delete</button>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl mt-8 overflow-x-auto">
-            <h3 class="text-2xl font-bold text-center text-gray-800 mb-6">Contracts Table</h3>
-            <div id="loading" class="flex justify-center items-center py-8">
-                <div class="loading-spinner"></div>
-                <span class="ml-4 text-gray-500">Loading contracts...</span>
+        <!-- Filters and Search -->
+        <div class="bg-white rounded-3xl shadow-2xl p-8 mb-8">
+            <h2 class="text-2xl font-semibold text-slate-700 mb-6">Filter & Search</h2>
+            <div class="flex flex-wrap items-end gap-6">
+                <!-- Filter by Process -->
+                <div class="flex-1 min-w-[200px]">
+                    <label for="filterCurrentProcess" class="form-label">Current Process</label>
+                    <select id="filterCurrentProcess" class="form-input">
+                        <option value="all">All</option>
+                        <option value="Advance Payment">Advance Payment</option>
+                        <option value="Part Payment">Part Payment</option>
+                        <option value="Final Payment">Final Payment</option>
+                        <option value="Variation">Variation</option>
+                        <option value="Retention">Retention</option>
+                        <option value="N/A">N/A</option>
+                    </select>
+                </div>
+                
+                <!-- Filter by Status -->
+                <div class="flex-1 min-w-[200px]">
+                    <label for="filterPaymentStatus" class="form-label">Payment Status</label>
+                    <select id="filterPaymentStatus" class="form-input">
+                        <option value="all">All</option>
+                        <option value="Processing">Processing</option>
+                        <option value="On hold">On hold</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Blocked">Blocked</option>
+                    </select>
+                </div>
+                
+                <!-- Search and Clear Button -->
+                <div class="flex-1 min-w-[250px]">
+                    <label for="searchContactNumber" class="form-label">Search by Contact Number</label>
+                    <div class="flex">
+                        <input type="text" id="searchContactNumber" placeholder="Enter number..." class="form-input rounded-r-none">
+                        <button id="clear-filters-btn" type="button" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-3 px-6 rounded-r-xl transition duration-300">
+                            Clear
+                        </button>
+                    </div>
+                </div>
             </div>
-            <table id="contractsTable" class="min-w-full bg-white rounded-xl overflow-hidden">
-                <thead class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
+        </div>
+
+        <!-- Contacts Table -->
+        <div class="bg-white rounded-3xl shadow-2xl p-8 overflow-x-auto">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                <h2 class="text-3xl font-semibold text-slate-700 mb-4 sm:mb-0">Contact Payment List</h2>
+                <!-- Color Legend -->
+                <div class="flex flex-wrap items-center space-x-4 text-sm">
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-green-100 border border-green-300"></span>
+                        <span>Advance</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-blue-100 border border-blue-300"></span>
+                        <span>Part</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-yellow-100 border border-yellow-300"></span>
+                        <span>Final</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-red-100 border border-red-300"></span>
+                        <span>Variation</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-purple-100 border border-purple-300"></span>
+                        <span>Retention</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <span class="w-3 h-3 rounded-full bg-white border border-gray-300"></span>
+                        <span>N/A</span>
+                    </div>
+                </div>
+            </div>
+            <table class="min-w-full">
+                <thead class="bg-slate-200">
                     <tr>
-                        <th class="py-3 px-6 text-left">Contract Name</th>
-                        <th class="py-3 px-6 text-left">Contact No.</th>
-                        <th class="py-3 px-6 text-left">Contractor</th>
-                        <th class="py-3 px-6 text-right">Price</th>
-                        <th class="py-3 px-6 text-right">P. Sum</th>
-                        <th class="py-3 px-6 text-right">Contingency</th>
-                        <th class="py-3 px-6 text-right">Advance</th>
-                        <th class="py-3 px-6 text-right">Part</th>
-                        <th class="py-3 px-6 text-right">Final</th>
-                        <th class="py-3 px-6 text-right">Retention</th>
-                        <th class="py-3 px-6 text-right">Variation</th>
-                        <th class="py-3 px-6 text-left">Officer</th>
-                        <th class="py-3 px-6 text-left">Payment Process</th>
-                        <th class="py-3 px-6 text-left">Status</th>
-                        <th class="py-3 px-6 text-center">Actions</th>
+                        <th class="table-header-cell rounded-tl-xl">Contact Name</th>
+                        <th class="table-header-cell">Contact Number</th>
+                        <th class="table-header-cell">Contractor</th>
+                        <th colspan="3" class="table-header-cell text-center">Contract Price</th>
+                        <th class="table-header-cell">Payment Breakdown</th>
+                        <th class="table-header-cell">Relevant Officer</th>
+                        <th class="table-header-cell">Payment Status</th>
+                        <th class="table-header-cell">Current Payment Process</th>
+                        <th class="table-header-cell">Notes</th>
+                        <th class="table-header-cell rounded-tr-xl">Actions</th>
+                    </tr>
+                    <tr>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100 text-right">Contact Price</th>
+                        <th class="p-3 border-r bg-slate-100 text-right">P.Sum Price</th>
+                        <th class="p-3 border-r bg-slate-100 text-right">Contingencies</th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 bg-slate-100"></th>
                     </tr>
                 </thead>
-                <tbody class="text-gray-600 text-sm font-light">
+                <tbody id="contacts-table-body" class="bg-white divide-y divide-slate-200">
+                    <!-- Data will be dynamically inserted here -->
+                    <tr>
+                        <td colspan="12" class="p-8 text-center text-slate-500">
+                            <div class="flex justify-center items-center">
+                                <div class="loading-spinner"></div>
+                            </div>
+                            <p class="mt-4">Loading contacts...</p>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
-            <p id="noContractsMessage" class="text-center text-gray-500 mt-4 hidden"></p>
-        </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex justify-center items-center p-4">
-        <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
-            <h4 class="text-xl font-bold mb-4">Confirm Deletion</h4>
-            <p class="mb-6">Are you sure you want to delete this contract?</p>
-            <div class="flex justify-center space-x-4">
-                <button id="confirmDeleteBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Delete</button>
-                <button id="cancelDeleteBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancel</button>
-            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, deleteDoc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Set Firebase debug logging
-        setLogLevel('debug');
+        // Firebase Initialization and Auth
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const projectId = "payment-process-58488"; // User's project ID
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
         
-        let db = null;
-        let auth = null;
-        let userId = null;
-        let formMode = 'add';
-        let contractIdToDelete = null;
+        // UI Elements
+        const showFormBtn = document.getElementById('show-form-btn');
+        const contactFormContainer = document.getElementById('contact-form-container');
+        const cancelFormBtn = document.getElementById('cancel-form-btn');
+        const clearFormBtn = document.getElementById('clear-form-btn');
+        const form = document.getElementById('contact-form');
+        const formTitle = document.getElementById('form-title');
+        const submitBtn = document.getElementById('submit-btn');
+        const messageContainer = document.getElementById('message-container');
+        const contactsTableBody = document.getElementById('contacts-table-body');
+        const filterCurrentProcess = document.getElementById('filterCurrentProcess');
+        const filterPaymentStatus = document.getElementById('filterPaymentStatus');
+        const searchContactNumber = document.getElementById('searchContactNumber');
+        const clearFiltersBtn = document.getElementById('clear-filters-btn');
+        const confirmModal = document.getElementById('confirm-modal');
+        const confirmYesBtn = document.getElementById('confirm-yes-btn');
+        const confirmNoBtn = document.getElementById('confirm-no-btn');
+        const userIdDisplay = document.getElementById('user-id-display');
 
-        const contractsTableBody = document.querySelector("#contractsTable tbody");
-        const noContractsMsg = document.getElementById('noContractsMessage');
-        const loadingIndicator = document.getElementById('loading');
-        const userIdDisplay = document.getElementById('userIdDisplay');
-        const contractFormContainer = document.getElementById("contractFormContainer");
-        const contractForm = document.getElementById("contractForm");
-        const saveButton = document.getElementById("saveButton");
-        
-        // This is a more resilient way to handle Firebase initialization
-        // It checks for the provided environment variables first, then falls back
-        // to anonymous sign-in with the user's hardcoded config if needed.
-        async function initializeFirebase() {
-            let firebaseApp, firebaseAuth, firestoreDb;
-            const firebaseConfig = {
-                apiKey: "AIzaSyBxMpflyILg4t9jb_4HwJ1qTNRki1BtaXY",
-                authDomain: "payment-process-58488.firebaseapp.com",
-                databaseURL: "https://payment-process-58488-default-rtdb.firebaseio.com",
-                projectId: "payment-process-58488",
-                storageBucket: "payment-process-58488.firebasestorage.app",
-                messagingSenderId: "1020875968218",
-                appId: "1:1020875968218:web:215024b342d9e41ece1fe3",
-                measurementId: "G-JF7E4RCNTW"
+        let editingId = null;
+        let unsubscribe = null;
+        let deleteId = null; // Store ID for delete modal
+
+        // Helper functions
+        function formToObject(form) {
+            const formData = new FormData(form);
+            const obj = {};
+            for (const [key, value] of formData.entries()) {
+                obj[key] = value;
+            }
+            return obj;
+        }
+
+        function showMessage(text, type) {
+            messageContainer.textContent = text;
+            messageContainer.className = `p-4 rounded-xl mb-6 text-sm font-medium ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            messageContainer.classList.remove('hidden');
+            setTimeout(() => {
+                messageContainer.classList.add('hidden');
+            }, 5000);
+        }
+
+        function showForm() {
+            contactFormContainer.classList.remove('hidden');
+            showFormBtn.classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function hideForm() {
+            contactFormContainer.classList.add('hidden');
+            showFormBtn.classList.remove('hidden');
+            form.reset();
+            formTitle.textContent = "Add New Contact";
+            submitBtn.textContent = "Add Contact";
+            editingId = null;
+        }
+
+        function showConfirmModal(id) {
+            deleteId = id;
+            confirmModal.classList.remove('hidden');
+        }
+
+        function hideConfirmModal() {
+            confirmModal.classList.add('hidden');
+            deleteId = null;
+        }
+
+        const debounce = (func, delay) => {
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        // Database Operations
+        async function saveContact(contactObj) {
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/contacts`), contactObj);
+                showMessage('Contact added successfully!', 'success');
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showMessage('Error adding contact. Please try again.', 'error');
+            }
+        }
+
+        async function updateContact(id, partial) {
+            try {
+                const refDoc = doc(db, `artifacts/${appId}/public/data/contacts`, id);
+                await updateDoc(refDoc, partial);
+                showMessage('Contact updated successfully!', 'success');
+            } catch (e) {
+                console.error("Error updating document: ", e);
+                showMessage('Error updating contact. Please try again.', 'error');
+            }
+        }
+
+        async function deleteContact(id) {
+            try {
+                const refDoc = doc(db, `artifacts/${appId}/public/data/contacts`, id);
+                await deleteDoc(refDoc);
+                showMessage('Contact deleted successfully!', 'success');
+            } catch (e) {
+                console.error("Error deleting document: ", e);
+                showMessage('Error deleting contact. Please try again.', 'error');
+            }
+        }
+
+        function renderContacts(list) {
+            contactsTableBody.innerHTML = '';
+            if (list.length === 0) {
+                contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-slate-500">No contacts found.</td></tr>`;
+                return;
+            }
+
+            const paymentProcessColors = {
+                'Advance Payment': 'bg-green-100',
+                'Part Payment': 'bg-blue-100',
+                'Final Payment': 'bg-yellow-100',
+                'Variation': 'bg-red-100',
+                'Retention': 'bg-purple-100',
+                'N/A': 'bg-white',
+                'all': 'bg-white'
             };
 
-            firebaseApp = initializeApp(firebaseConfig);
-            firestoreDb = getFirestore(firebaseApp);
-            firebaseAuth = getAuth(firebaseApp);
-
-            // Use onAuthStateChanged to manage user state
-            onAuthStateChanged(firebaseAuth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    userIdDisplay.textContent = `User ID: ${userId}`;
-                    contractForm.classList.remove('disabled-form');
-                    startFirestoreListener(firestoreDb, userId);
-                } else {
-                    showMessage("Authentication failed. Data will not be saved.", "error");
-                    userIdDisplay.textContent = `User ID: Not authenticated`;
-                    loadingIndicator.classList.add('hidden');
-                }
-            });
-
-            // Sign in anonymously to start the process
-            await signInAnonymously(firebaseAuth);
-
-            return { db: firestoreDb, auth: firebaseAuth };
-        }
-
-        async function startFirestoreListener(firestoreDb, currentUserId) {
-            loadingIndicator.classList.remove('hidden');
-            const contractsRef = collection(firestoreDb, `artifacts/${projectId}/users/${currentUserId}/contracts`);
-            const q = query(contractsRef);
-
-            onSnapshot(q, (snapshot) => {
-                loadingIndicator.classList.add('hidden');
-                const contracts = [];
-                snapshot.forEach((doc) => {
-                    contracts.push({ id: doc.id, ...doc.data() });
-                });
-                renderContracts(contracts);
-            }, (error) => {
-                console.error("Error fetching contracts: ", error);
-                showMessage("Error loading contracts. Please try again.", "error");
-                loadingIndicator.classList.add('hidden');
-            });
-        }
-
-        // Utility function to show a temporary message
-        function showMessage(message, type = 'success') {
-            const msgBox = document.getElementById('message-box');
-            msgBox.textContent = message;
-            msgBox.className = `fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform duration-300 ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} translate-y-0`;
-
-            setTimeout(() => {
-                msgBox.className = `fixed inset-x-0 top-4 mx-auto w-fit z-50 p-3 rounded-lg shadow-xl text-white font-semibold transition-transform transform -translate-y-full duration-300`;
-            }, 3000);
-        }
-
-        // Toggle form visibility and set mode
-        function toggleForm(mode) {
-            const formTitle = document.getElementById("formTitle");
-
-            contractFormContainer.classList.remove("hidden");
-
-            // Show/hide form fields based on mode
-            const formFields = document.querySelectorAll('.form-field-wrapper');
-            formFields.forEach(field => {
-                if (mode === 'add' && field.dataset.formMode === 'add') {
-                    field.classList.remove('hidden');
-                } else if (mode === 'edit' && field.dataset.formModeEdit === 'true') {
-                    field.classList.remove('hidden');
-                } else {
-                    field.classList.add('hidden');
-                }
-            });
-
-            if (mode === 'add') {
-                document.getElementById("contractForm").reset();
-                document.getElementById("contractId").value = "";
-                saveButton.innerHTML = "Save Contract";
-                formTitle.textContent = "Add New Contract";
-            } else {
-                saveButton.innerHTML = "Update Contract";
-                formTitle.textContent = "Edit Contract Details";
-            }
-        }
-
-        // Calculate and update contingency and advance payment values
-        function updateCalculatedValues() {
-            const contractPriceInput = document.getElementById("contractPrice");
-            const contractPrice = parseFloat(contractPriceInput.value) || 0;
-            const hasContingencies = document.getElementById("hasContingencies").value === "Yes";
-
-            const contingencies = hasContingencies ? (contractPrice * 0.10) : 0;
-            const advancePayment = contractPrice * 0.20;
-
-            document.getElementById("contingencies").value = contingencies.toFixed(2);
-            document.getElementById("advancePayment").value = advancePayment.toFixed(2);
-        }
-
-        // Get CSS class based on payment process
-        function getProcessClass(process) {
-            switch(process) {
-                case 'Advance': return 'advance';
-                case 'Part': return 'part';
-                case 'Final': return 'final';
-                case 'Retention': return 'retention';
-                case 'Variation': return 'variation';
-                default: return '';
-            }
-        }
-
-        // Render contracts table
-        function renderContracts(contracts) {
-            contractsTableBody.innerHTML = '';
-            
-            if (contracts.length === 0) {
-                noContractsMsg.classList.remove('hidden');
-                noContractsMsg.textContent = 'No contracts found.';
-                return;
-            } else {
-                noContractsMsg.classList.add('hidden');
-            }
-
-            contracts.forEach(contract => {
-                const row = contractsTableBody.insertRow();
-                row.id = `row-${contract.id}`;
-                row.className = getProcessClass(contract.paymentProcess);
-
-                row.innerHTML = `
-                    <td data-label="Contract Name" class="py-3 px-6">${contract.contractName}</td>
-                    <td data-label="Contact No." class="py-3 px-6">${contract.contactNumber}</td>
-                    <td data-label="Contractor" class="py-3 px-6">${contract.contractor}</td>
-                    <td data-label="Price" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.contractPrice || 0).toFixed(2)}</td>
-                    <td data-label="P. Sum" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.psumPrice || 0).toFixed(2)}</td>
-                    <td data-label="Contingency" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.contingencies || 0).toFixed(2)}</td>
-                    <td data-label="Advance" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.advancePayment || 0).toFixed(2)}</td>
-                    <td data-label="Part" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.partPayment || 0).toFixed(2)}</td>
-                    <td data-label="Final" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.finalPayment || 0).toFixed(2)}</td>
-                    <td data-label="Retention" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.retention || 0).toFixed(2)}</td>
-                    <td data-label="Variation" class="py-3 px-6 text-right">Rs. ${parseFloat(contract.variation || 0).toFixed(2)}</td>
-                    <td data-label="Officer" class="py-3 px-6">${contract.officer}</td>
-                    <td data-label="Payment Process" class="py-3 px-6">${contract.paymentProcess}</td>
-                    <td data-label="Status" class="py-3 px-6">${contract.status}</td>
-                    <td data-label="Actions" class="py-3 px-6 text-center whitespace-nowrap">
-                        <button onclick="editContract('${contract.id}')" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-lg mr-2">Edit</button>
-                        <button onclick="showDeleteModal('${contract.id}')" class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-lg">Delete</button>
+            list.forEach(item => {
+                const rowColor = paymentProcessColors[item.currentPaymentProcess] || 'bg-white';
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50 ${rowColor}`;
+                
+                tr.innerHTML = `
+                    <td class="p-3">${item.contactName || ''}</td>
+                    <td class="p-3">${item.contactNumber || ''}</td>
+                    <td class="p-3">${item.contractor || ''}</td>
+                    <td class="p-3 text-right">${item.contactPrice ? `$${parseFloat(item.contactPrice).toFixed(2)}` : ''}</td>
+                    <td class="p-3 text-right">${item.pSumPrice ? `$${parseFloat(item.pSumPrice).toFixed(2)}` : ''}</td>
+                    <td class="p-3 text-right">${item.contingencies ? `$${parseFloat(item.contingencies).toFixed(2)}` : ''}</td>
+                    <td class="p-3">
+                        <ul class="table-payment-list">
+                            <li>Advance: ${item.advancePaymentAmount ? `$${parseFloat(item.advancePaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.advancePaymentReceivedDate || ''}</span></li>
+                            <li>Part: ${item.partPaymentAmount ? `$${parseFloat(item.partPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.partPaymentReceivedDate || ''}</span></li>
+                            <li>Final: ${item.finalPaymentAmount ? `$${parseFloat(item.finalPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.finalPaymentReceivedDate || ''}</span></li>
+                            <li>Variation: ${item.variationAmount ? `$${parseFloat(item.variationAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.variationReceivedDate || ''}</span></li>
+                            <li>Retention: ${item.retentionAmount ? `$${parseFloat(item.retentionAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.retentionReceivedDate || ''}</span></li>
+                        </ul>
+                    </td>
+                    <td class="p-3">${item.relevantOfficer || ''}</td>
+                    <td class="p-3">${item.paymentStatus || ''}</td>
+                    <td class="p-3">${item.currentPaymentProcess || ''}</td>
+                    <td class="p-3">${item.notes || ''}</td>
+                    <td class="p-3 whitespace-nowrap">
+                        <button data-id="${item._id}" class="edit-btn px-3 py-1 rounded-lg bg-yellow-300 text-yellow-900 font-medium mr-2 hover:bg-yellow-400 transition-colors">Edit</button>
+                        <button data-id="${item._id}" class="delete-btn px-3 py-1 rounded-lg bg-red-300 text-red-900 font-medium hover:bg-red-400 transition-colors">Delete</button>
                     </td>
                 `;
+                contactsTableBody.appendChild(tr);
             });
-            filterTable(); // Apply filters after rendering
+
+            // Re-attach event listeners to new buttons
+            contactsTableBody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    showConfirmModal(e.currentTarget.dataset.id);
+                });
+            });
+
+            contactsTableBody.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const item = list.find(x => x._id === id);
+                    if (!item) return;
+                    
+                    // Populate form fields
+                    for (const key in item) {
+                        const field = form.elements[key];
+                        if (field) {
+                            field.value = item[key] || '';
+                        }
+                    }
+                    
+                    editingId = id;
+                    formTitle.textContent = "Edit Contact";
+                    submitBtn.textContent = "Update Contact";
+                    showForm();
+                });
+            });
         }
 
-        // Filter and search table
-        function filterTable() {
-            const contractorSearch = document.getElementById('searchContractor').value.toLowerCase();
-            const statusFilter = document.getElementById('filterStatus').value;
-            const rows = document.querySelectorAll("#contractsTable tbody tr");
+        function startContactsListener() {
+            if (unsubscribe) {
+                unsubscribe();
+            }
 
-            rows.forEach(row => {
-                const contractor = row.cells[2].textContent.toLowerCase();
-                const status = row.cells[13].textContent;
+            const currentProcess = filterCurrentProcess.value;
+            const paymentStatus = filterPaymentStatus.value;
+            const searchTerm = searchContactNumber.value.trim();
+            
+            let q = collection(db, `artifacts/${appId}/public/data/contacts`);
 
-                const contractorMatch = contractor.includes(contractorSearch);
-                const statusMatch = statusFilter === "" || status === statusFilter;
+            const filters = [];
+            if (currentProcess !== 'all') {
+                filters.push(where('currentPaymentProcess', '==', currentProcess));
+            }
+            if (paymentStatus !== 'all') {
+                filters.push(where('paymentStatus', '==', paymentStatus));
+            }
+            if (searchTerm) {
+                filters.push(where('contactNumber', '==', searchTerm));
+            }
 
-                if (contractorMatch && statusMatch) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            const contactQuery = query(collection(db, `artifacts/${appId}/public/data/contacts`), ...filters);
+            
+            unsubscribe = onSnapshot(contactQuery, (snapshot) => {
+                const list = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+                renderContacts(list);
+            }, (error) => {
+                console.error("Error listening for real-time updates: ", error);
+                contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Error loading data. Please check your connection.</td></tr>`;
             });
         }
 
-        // Handle form submission
-        document.getElementById("contractForm").addEventListener("submit", async (e) => {
+        // Event Listeners
+        showFormBtn.addEventListener('click', showForm);
+        cancelFormBtn.addEventListener('click', hideForm);
+        clearFormBtn.addEventListener('click', () => form.reset());
+
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            submitBtn.disabled = true;
+            submitBtn.textContent = editingId ? 'Updating...' : 'Adding...';
 
-            if (!db || !userId) {
-                showMessage("Database is not connected. Please wait for authentication.", "error");
-                return;
+            const contactObj = formToObject(form);
+            if (editingId) {
+                await updateContact(editingId, contactObj);
+            } else {
+                await saveContact(contactObj);
             }
-
-            saveButton.innerHTML = `<div class="loading-spinner mx-auto"></div>`;
-
-            const id = document.getElementById("contractId").value;
-            const contractData = {
-                contractName: document.getElementById("contractName").value,
-                contactNumber: document.getElementById("contactNumber").value,
-                contractor: document.getElementById("contractor").value,
-                contractPrice: parseFloat(document.getElementById("contractPrice").value) || 0,
-                psumPrice: parseFloat(document.getElementById("psumPrice").value) || 0,
-                contingencies: parseFloat(document.getElementById("contingencies").value) || 0,
-                advancePayment: parseFloat(document.getElementById("advancePayment").value) || 0,
-                partPayment: parseFloat(document.getElementById("partPayment").value) || 0,
-                finalPayment: parseFloat(document.getElementById("finalPayment").value) || 0,
-                retention: parseFloat(document.getElementById("retention").value) || 0,
-                variation: parseFloat(document.getElementById("variation").value) || 0,
-                officer: document.getElementById("officer").value,
-                paymentProcess: document.getElementById("paymentProcess").value,
-                status: document.getElementById("status").value,
-                createdAt: serverTimestamp()
-            };
-
-            try {
-                if (id) {
-                    await setDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, id), contractData, { merge: true });
-                    showMessage("Contract updated successfully!", "success");
-                } else {
-                    await addDoc(collection(db, `artifacts/${projectId}/users/${userId}/contracts`), contractData);
-                    showMessage("Contract added successfully!", "success");
-                }
-                document.getElementById("contractForm").reset();
-                document.getElementById("contractId").value = "";
-                contractFormContainer.classList.add("hidden");
-            } catch (e) {
-                console.error("Error saving contract:", e);
-                showMessage("Failed to save contract. Please try again.", "error");
-            } finally {
-                saveButton.innerHTML = id ? "Update Contract" : "Save Contract";
-            }
+            submitBtn.disabled = false;
+            hideForm();
         });
-
-        // Edit contract
-        function editContract(id) {
-            const tableRows = document.querySelectorAll("#contractsTable tbody tr");
-            const contractRow = Array.from(tableRows).find(row => row.id === `row-${id}`);
-            
-            if (!contractRow) return;
-
-            toggleForm('edit');
-            
-            const data = {};
-            Array.from(contractRow.cells).forEach(cell => {
-                const label = cell.dataset.label;
-                const value = cell.textContent.trim();
-                if (label === "Contract Name") data.contractName = value;
-                if (label === "Contact No.") data.contactNumber = value;
-                if (label === "Contractor") data.contractor = value;
-                if (label === "Price") data.contractPrice = parseFloat(value.replace('Rs. ', ''));
-                if (label === "P. Sum") data.psumPrice = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Contingency") data.contingencies = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Advance") data.advancePayment = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Part") data.partPayment = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Final") data.finalPayment = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Retention") data.retention = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Variation") data.variation = parseFloat(value.replace('Rs. ', ''));
-                if (label === "Officer") data.officer = value;
-                if (label === "Payment Process") data.paymentProcess = value;
-                if (label === "Status") data.status = value;
-            });
-            
-            document.getElementById("contractId").value = id;
-            document.getElementById("contractName").value = data.contractName;
-            document.getElementById("contactNumber").value = data.contactNumber;
-            document.getElementById("contractor").value = data.contractor;
-            document.getElementById("contractPrice").value = data.contractPrice;
-            document.getElementById("psumPrice").value = data.psumPrice;
-            document.getElementById("partPayment").value = data.partPayment;
-            document.getElementById("finalPayment").value = data.finalPayment;
-            document.getElementById("retention").value = data.retention;
-            document.getElementById("variation").value = data.variation;
-            document.getElementById("officer").value = data.officer;
-            document.getElementById("paymentProcess").value = data.paymentProcess;
-            document.getElementById("status").value = data.status;
-
-            document.getElementById("hasContingencies").value = data.contingencies > 0 ? "Yes" : "No";
-            document.getElementById("contingencies").value = data.contingencies;
-            document.getElementById("advancePayment").value = data.advancePayment;
-        }
-
-        // Delete confirmation modal functions
-        function showDeleteModal(id) {
-            contractIdToDelete = id;
-            document.getElementById("deleteModal").classList.remove("hidden");
-        }
-
-        function hideDeleteModal() {
-            contractIdToDelete = null;
-            document.getElementById("deleteModal").classList.add("hidden");
-        }
-
-        // Delete contract after confirmation
-        document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
-            if (!db || !userId) {
-                showMessage("Database is not connected. Cannot delete contract.", "error");
-                hideDeleteModal();
-                return;
-            }
-            if (contractIdToDelete && userId) {
-                try {
-                    await deleteDoc(doc(db, `artifacts/${projectId}/users/${userId}/contracts`, contractIdToDelete));
-                    showMessage("Contract deleted successfully!", "success");
-                } catch (e) {
-                    console.error("Error deleting contract: ", e);
-                    showMessage("Failed to delete contract. Please try again.", "error");
-                }
-            }
-            hideDeleteModal();
-        });
-
-        document.getElementById("cancelDeleteBtn").addEventListener("click", hideDeleteModal);
-
-        // Add event listeners for dynamic calculations
-        document.getElementById("contractPrice").addEventListener("input", updateCalculatedValues);
-        document.getElementById("hasContingencies").addEventListener("change", updateCalculatedValues);
-
-        // Add event listeners for filtering
-        document.getElementById("searchContractor").addEventListener("input", filterTable);
-        document.getElementById("filterStatus").addEventListener("change", filterTable);
         
-        // Expose functions to the global scope so they can be called from onclick attributes
-        window.toggleForm = toggleForm;
-        window.editContract = editContract;
-        window.showDeleteModal = showDeleteModal;
-
-        // Attach event listener for the "Add New Contract" button
-        window.addEventListener('load', () => {
-            const addNewContractBtn = document.getElementById('addNewContractBtn');
-            const contractForm = document.getElementById('contractForm');
-            if (addNewContractBtn) {
-                addNewContractBtn.addEventListener('click', () => toggleForm('add'));
-                contractForm.classList.add('disabled-form');
+        // Modal button listeners
+        confirmYesBtn.addEventListener('click', async () => {
+            if (deleteId) {
+                await deleteContact(deleteId);
             }
-            
-            // Start the Firebase initialization
-            initializeFirebase().then(({ db: firestoreDb, auth: firebaseAuth }) => {
-                db = firestoreDb;
-                auth = firebaseAuth;
-            }).catch(e => {
-                console.error("Initialization Error:", e);
-                showMessage("Failed to initialize Firebase.", "error");
-            });
+            hideConfirmModal();
+        });
+
+        confirmNoBtn.addEventListener('click', () => {
+            hideConfirmModal();
+        });
+
+        // Filter and search listeners
+        filterCurrentProcess.addEventListener('change', startContactsListener);
+        filterPaymentStatus.addEventListener('change', startContactsListener);
+        searchContactNumber.addEventListener('input', debounce(startContactsListener, 500));
+        clearFiltersBtn.addEventListener('click', () => {
+            filterCurrentProcess.value = 'all';
+            filterPaymentStatus.value = 'all';
+            searchContactNumber.value = '';
+            startContactsListener();
+        });
+
+        // Initial Auth State Check
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                const userId = user.uid;
+                userIdDisplay.textContent = `User ID: ${userId}`;
+                startContactsListener();
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Auth error:", error);
+                    userIdDisplay.textContent = "Authentication failed.";
+                }
+            }
         });
     </script>
 </body>
