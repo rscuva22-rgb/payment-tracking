@@ -390,6 +390,8 @@
                         <th class="table-header-cell">Contractor</th>
                         <th colspan="3" class="table-header-cell text-center">Contract Price</th>
                         <th class="table-header-cell">Payment Breakdown</th>
+                        <th class="table-header-cell">Total Payments</th>
+                        <th class="table-header-cell">Remaining Balance</th>
                         <th class="table-header-cell">Relevant Officer</th>
                         <th class="table-header-cell">Payment Status</th>
                         <th class="table-header-cell">Current Payment Process</th>
@@ -403,6 +405,8 @@
                         <th class="p-3 border-r bg-slate-100 text-right">Contact Price</th>
                         <th class="p-3 border-r bg-slate-100 text-right">P.Sum Price</th>
                         <th class="p-3 border-r bg-slate-100 text-right">Contingencies</th>
+                        <th class="p-3 border-r bg-slate-100"></th>
+                        <th class="p-3 border-r bg-slate-100"></th>
                         <th class="p-3 border-r bg-slate-100"></th>
                         <th class="p-3 border-r bg-slate-100"></th>
                         <th class="p-3 border-r bg-slate-100"></th>
@@ -472,7 +476,12 @@
                 const formData = new FormData(form);
                 const obj = {};
                 for (const [key, value] of formData.entries()) {
-                    obj[key] = value;
+                    // Convert numeric inputs to numbers
+                    if (['contactPrice', 'pSumPrice', 'contingencies', 'advancePaymentAmount', 'partPaymentAmount', 'finalPaymentAmount', 'variationAmount', 'retentionAmount'].includes(key)) {
+                        obj[key] = value ? Number(value) : 0;
+                    } else {
+                        obj[key] = value;
+                    }
                 }
                 return obj;
             }
@@ -555,7 +564,7 @@
             function renderContacts(list) {
                 contactsTableBody.innerHTML = '';
                 if (list.length === 0) {
-                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-slate-500">No contacts found.</td></tr>`;
+                    contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-slate-500">No contacts found.</td></tr>`;
                     return;
                 }
 
@@ -574,22 +583,34 @@
                     const tr = document.createElement('tr');
                     tr.className = `hover:bg-slate-50 ${rowColor}`;
                     
+                    // Calculate total payments and remaining balance
+                    const totalPayments = (Number(item.advancePaymentAmount) || 0) +
+                                          (Number(item.partPaymentAmount) || 0) +
+                                          (Number(item.finalPaymentAmount) || 0) +
+                                          (Number(item.variationAmount) || 0) +
+                                          (Number(item.retentionAmount) || 0);
+                    
+                    const contractPrice = (Number(item.contactPrice) || 0);
+                    const remainingBalance = contractPrice - totalPayments;
+
                     tr.innerHTML = `
                         <td class="p-3">${item.contactName || ''}</td>
                         <td class="p-3">${item.contactNumber || ''}</td>
                         <td class="p-3">${item.contractor || ''}</td>
-                        <td class="p-3 text-right">${item.contactPrice ? `Rs.${parseFloat(item.contactPrice).toFixed(2)}` : ''}</td>
-                        <td class="p-3 text-right">${item.pSumPrice ? `Rs.${parseFloat(item.pSumPrice).toFixed(2)}` : ''}</td>
-                        <td class="p-3 text-right">${item.contingencies ? `Rs.${parseFloat(item.contingencies).toFixed(2)}` : ''}</td>
+                        <td class="p-3 text-right">${item.contactPrice ? `Rs.${Number(item.contactPrice).toFixed(2)}` : ''}</td>
+                        <td class="p-3 text-right">${item.pSumPrice ? `Rs.${Number(item.pSumPrice).toFixed(2)}` : ''}</td>
+                        <td class="p-3 text-right">${item.contingencies ? `Rs.${Number(item.contingencies).toFixed(2)}` : ''}</td>
                         <td class="p-3">
                             <ul class="table-payment-list">
-                                <li>Advance: ${item.advancePaymentAmount ? `Rs.${parseFloat(item.advancePaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.advancePaymentReceivedDate || ''}</span></li>
-                                <li>Part: ${item.partPaymentAmount ? `Rs.${parseFloat(item.partPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.partPaymentReceivedDate || ''}</span></li>
-                                <li>Final: ${item.finalPaymentAmount ? `Rs.${parseFloat(item.finalPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.finalPaymentReceivedDate || ''}</span></li>
-                                <li>Variation: ${item.variationAmount ? `Rs.${parseFloat(item.variationAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.variationReceivedDate || ''}</span></li>
-                                <li>Retention: ${item.retentionAmount ? `Rs.${parseFloat(item.retentionAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.retentionReceivedDate || ''}</span></li>
+                                <li>Advance: ${item.advancePaymentAmount ? `Rs.${Number(item.advancePaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.advancePaymentReceivedDate || ''}</span></li>
+                                <li>Part: ${item.partPaymentAmount ? `Rs.${Number(item.partPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.partPaymentReceivedDate || ''}</span></li>
+                                <li>Final: ${item.finalPaymentAmount ? `Rs.${Number(item.finalPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.finalPaymentReceivedDate || ''}</span></li>
+                                <li>Variation: ${item.variationAmount ? `Rs.${Number(item.variationAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.variationReceivedDate || ''}</span></li>
+                                <li>Retention: ${item.retentionAmount ? `Rs.${Number(item.retentionAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.retentionReceivedDate || ''}</span></li>
                             </ul>
                         </td>
+                        <td class="p-3 text-right font-medium">${totalPayments ? `Rs.${totalPayments.toFixed(2)}` : ''}</td>
+                        <td class="p-3 text-right font-bold text-red-600">${remainingBalance ? `Rs.${remainingBalance.toFixed(2)}` : ''}</td>
                         <td class="p-3">${item.relevantOfficer || ''}</td>
                         <td class="p-3">${item.paymentStatus || ''}</td>
                         <td class="p-3">${item.currentPaymentProcess || ''}</td>
@@ -619,7 +640,12 @@
                         for (const key in item) {
                             const field = form.elements[key];
                             if (field) {
-                                field.value = item[key] || '';
+                                // For numeric values, ensure they are correctly formatted
+                                if (typeof item[key] === 'number') {
+                                    field.value = item[key].toFixed(2);
+                                } else {
+                                    field.value = item[key] || '';
+                                }
                             }
                         }
                         
@@ -646,7 +672,8 @@
                 const paymentStatus = filterPaymentStatus.value;
                 const searchTerm = searchContactNumber.value.trim();
                 
-                let q = collection(db, `artifacts/${appId}/public/data/contacts`);
+                // Construct the base query
+                let contactQuery = collection(db, `artifacts/${appId}/public/data/contacts`);
 
                 const filters = [];
                 if (currentProcess !== 'all') {
@@ -659,7 +686,9 @@
                     filters.push(where('contactNumber', '==', searchTerm));
                 }
 
-                const contactQuery = query(collection(db, `artifacts/${appId}/public/data/contacts`), ...filters);
+                // IMPORTANT FIX: A missing orderBy clause can cause the query to fail.
+                // It is a best practice to always order your queries, especially with where filters.
+                contactQuery = query(contactQuery, ...filters, orderBy('contactName'));
                 
                 unsubscribe = onSnapshot(contactQuery, (snapshot) => {
                     console.log("Firestore data received. Docs:", snapshot.docs.length);
@@ -667,7 +696,7 @@
                     renderContacts(list);
                 }, (error) => {
                     console.error("Error listening for real-time updates: ", error);
-                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Error loading data. Please check your connection or permissions.</td></tr>`;
+                    contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Error loading data. Please check your connection or permissions.</td></tr>`;
                 });
             }
 
@@ -716,7 +745,7 @@
             
             const loadingTimeout = setTimeout(() => {
                 if (!isAuthReady) {
-                    contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Connection timed out. Please check your internet connection and refresh the page.</td></tr>`;
+                    contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Connection timed out. Please check your internet connection and refresh the page.</td></tr>`;
                 }
             }, 10000); // 10 seconds timeout
 
@@ -739,7 +768,7 @@
                     } catch (error) {
                         console.error("Auth error:", error);
                         userIdDisplay.textContent = "Authentication failed.";
-                        contactsTableBody.innerHTML = `<tr><td colspan="12" class="p-8 text-center text-red-500">Authentication failed. Please refresh the page.</td></tr>`;
+                        contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Authentication failed. Please refresh the page.</td></tr>`;
                     }
                 }
             });
@@ -747,3 +776,4 @@
     </script>
 </body>
 </html>
+
