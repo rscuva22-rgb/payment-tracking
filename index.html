@@ -418,7 +418,7 @@
                 <tbody id="contacts-table-body" class="bg-white divide-y divide-slate-200">
                     <!-- Data will be dynamically inserted here -->
                     <tr>
-                        <td colspan="12" class="p-8 text-center text-slate-500">
+                        <td colspan="14" class="p-8 text-center text-slate-500">
                             <div class="flex justify-center items-center">
                                 <div class="loading-spinner"></div>
                             </div>
@@ -433,10 +433,12 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, deleteDoc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        setLogLevel('debug'); // Enable Firestore debug logs
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOM content loaded. Initializing app.");
+            console.log("1. DOM content loaded. Initializing Firebase.");
             
             // Firebase Initialization and Auth
             const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
@@ -468,7 +470,8 @@
 
             let editingId = null;
             let unsubscribe = null;
-            let deleteId = null; // Store ID for delete modal
+            let deleteId = null;
+            let allContacts = [];
             let isAuthReady = false;
 
             // Helper functions
@@ -476,7 +479,6 @@
                 const formData = new FormData(form);
                 const obj = {};
                 for (const [key, value] of formData.entries()) {
-                    // Convert numeric inputs to numbers
                     if (['contactPrice', 'pSumPrice', 'contingencies', 'advancePaymentAmount', 'partPaymentAmount', 'finalPaymentAmount', 'variationAmount', 'retentionAmount'].includes(key)) {
                         obj[key] = value ? Number(value) : 0;
                     } else {
@@ -499,6 +501,7 @@
                 contactFormContainer.classList.remove('hidden');
                 showFormBtn.classList.add('hidden');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+                console.log("Show form button clicked. Form is now visible.");
             }
 
             function hideForm() {
@@ -508,18 +511,22 @@
                 formTitle.textContent = "Add New Contact";
                 submitBtn.textContent = "Add Contact";
                 editingId = null;
+                console.log("Form hidden and reset.");
             }
 
             function showConfirmModal(id) {
                 deleteId = id;
                 confirmModal.classList.remove('hidden');
+                console.log("Showing delete confirmation modal.");
             }
 
             function hideConfirmModal() {
                 confirmModal.classList.add('hidden');
                 deleteId = null;
+                console.log("Hiding delete confirmation modal.");
             }
 
+            // Debounce function to prevent excessive filtering on search input
             const debounce = (func, delay) => {
                 let timeoutId;
                 return (...args) => {
@@ -527,12 +534,14 @@
                     timeoutId = setTimeout(() => func.apply(this, args), delay);
                 };
             };
-
+            
             // Database Operations
             async function saveContact(contactObj) {
                 try {
                     await addDoc(collection(db, `artifacts/${appId}/public/data/contacts`), contactObj);
                     showMessage('Contact added successfully!', 'success');
+                    console.log("Contact added to Firestore.");
+                    hideForm();
                 } catch (e) {
                     console.error("Error adding document: ", e);
                     showMessage('Error adding contact. Please try again.', 'error');
@@ -544,6 +553,8 @@
                     const refDoc = doc(db, `artifacts/${appId}/public/data/contacts`, id);
                     await updateDoc(refDoc, partial);
                     showMessage('Contact updated successfully!', 'success');
+                    console.log("Contact updated in Firestore.");
+                    hideForm();
                 } catch (e) {
                     console.error("Error updating document: ", e);
                     showMessage('Error updating contact. Please try again.', 'error');
@@ -555,225 +566,199 @@
                     const refDoc = doc(db, `artifacts/${appId}/public/data/contacts`, id);
                     await deleteDoc(refDoc);
                     showMessage('Contact deleted successfully!', 'success');
+                    console.log("Contact deleted from Firestore.");
                 } catch (e) {
                     console.error("Error deleting document: ", e);
                     showMessage('Error deleting contact. Please try again.', 'error');
                 }
             }
 
-            function renderContacts(list) {
+            function renderFilteredContacts() {
+                console.log("Rendering filtered contacts.");
                 contactsTableBody.innerHTML = '';
-                if (list.length === 0) {
+                
+                let filteredList = [...allContacts];
+
+                const currentProcess = filterCurrentProcess.value;
+                const paymentStatus = filterPaymentStatus.value;
+                const searchTerm = searchContactNumber.value.trim().toLowerCase();
+                
+                if (currentProcess !== 'all') {
+                    filteredList = filteredList.filter(item => item.currentPaymentProcess === currentProcess);
+                }
+                if (paymentStatus !== 'all') {
+                    filteredList = filteredList.filter(item => item.paymentStatus === paymentStatus);
+                }
+                if (searchTerm) {
+                    filteredList = filteredList.filter(item => 
+                        item.contactNumber && item.contactNumber.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                if (filteredList.length === 0) {
                     contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-slate-500">No contacts found.</td></tr>`;
                     return;
                 }
 
-                const paymentProcessColors = {
-                    'Advance Payment': 'bg-green-100',
-                    'Part Payment': 'bg-blue-100',
-                    'Final Payment': 'bg-yellow-100',
-                    'Variation': 'bg-red-100',
-                    'Retention': 'bg-purple-100',
-                    'N/A': 'bg-white',
-                    'all': 'bg-white'
-                };
+                filteredList.forEach(contact => {
+                    const totalPayments = (contact.advancePaymentAmount || 0) + (contact.partPaymentAmount || 0) + (contact.finalPaymentAmount || 0) + (contact.variationAmount || 0) + (contact.retentionAmount || 0);
+                    const remainingBalance = ((contact.contactPrice || 0) + (contact.pSumPrice || 0) + (contact.contingencies || 0)) - totalPayments;
 
-                list.forEach(item => {
-                    const rowColor = paymentProcessColors[item.currentPaymentProcess] || 'bg-white';
-                    const tr = document.createElement('tr');
-                    tr.className = `hover:bg-slate-50 ${rowColor}`;
-                    
-                    // Calculate total payments and remaining balance
-                    const totalPayments = (Number(item.advancePaymentAmount) || 0) +
-                                          (Number(item.partPaymentAmount) || 0) +
-                                          (Number(item.finalPaymentAmount) || 0) +
-                                          (Number(item.variationAmount) || 0) +
-                                          (Number(item.retentionAmount) || 0);
-                    
-                    const contractPrice = (Number(item.contactPrice) || 0);
-                    const remainingBalance = contractPrice - totalPayments;
+                    let processBgClass = 'bg-white';
+                    switch (contact.currentPaymentProcess) {
+                        case 'Advance Payment':
+                            processBgClass = 'bg-green-100';
+                            break;
+                        case 'Part Payment':
+                            processBgClass = 'bg-blue-100';
+                            break;
+                        case 'Final Payment':
+                            processBgClass = 'bg-yellow-100';
+                            break;
+                        case 'Variation':
+                            processBgClass = 'bg-red-100';
+                            break;
+                        case 'Retention':
+                            processBgClass = 'bg-purple-100';
+                            break;
+                    }
 
-                    tr.innerHTML = `
-                        <td class="p-3">${item.contactName || ''}</td>
-                        <td class="p-3">${item.contactNumber || ''}</td>
-                        <td class="p-3">${item.contractor || ''}</td>
-                        <td class="p-3 text-right">${item.contactPrice ? `Rs.${Number(item.contactPrice).toFixed(2)}` : ''}</td>
-                        <td class="p-3 text-right">${item.pSumPrice ? `Rs.${Number(item.pSumPrice).toFixed(2)}` : ''}</td>
-                        <td class="p-3 text-right">${item.contingencies ? `Rs.${Number(item.contingencies).toFixed(2)}` : ''}</td>
-                        <td class="p-3">
-                            <ul class="table-payment-list">
-                                <li>Advance: ${item.advancePaymentAmount ? `Rs.${Number(item.advancePaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.advancePaymentReceivedDate || ''}</span></li>
-                                <li>Part: ${item.partPaymentAmount ? `Rs.${Number(item.partPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.partPaymentReceivedDate || ''}</span></li>
-                                <li>Final: ${item.finalPaymentAmount ? `Rs.${Number(item.finalPaymentAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.finalPaymentReceivedDate || ''}</span></li>
-                                <li>Variation: ${item.variationAmount ? `Rs.${Number(item.variationAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.variationReceivedDate || ''}</span></li>
-                                <li>Retention: ${item.retentionAmount ? `Rs.${Number(item.retentionAmount).toFixed(2)}` : ''} <br><span class="text-xs text-slate-500">${item.retentionReceivedDate || ''}</span></li>
-                            </ul>
-                        </td>
-                        <td class="p-3 text-right font-medium">${totalPayments ? `Rs.${totalPayments.toFixed(2)}` : ''}</td>
-                        <td class="p-3 text-right font-bold text-red-600">${remainingBalance ? `Rs.${remainingBalance.toFixed(2)}` : ''}</td>
-                        <td class="p-3">${item.relevantOfficer || ''}</td>
-                        <td class="p-3">${item.paymentStatus || ''}</td>
-                        <td class="p-3">${item.currentPaymentProcess || ''}</td>
-                        <td class="p-3">${item.notes || ''}</td>
-                        <td class="p-3 whitespace-nowrap">
-                            <button data-id="${item._id}" class="edit-btn px-3 py-1 rounded-lg bg-yellow-300 text-yellow-900 font-medium mr-2 hover:bg-yellow-400 transition-colors">Edit</button>
-                            <button data-id="${item._id}" class="delete-btn px-3 py-1 rounded-lg bg-red-300 text-red-900 font-medium hover:bg-red-400 transition-colors">Delete</button>
-                        </td>
+                    const row = `
+                        <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <td class="p-4 border-r border-b border-slate-200">${contact.contactName || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200">${contact.contactNumber || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200">${contact.contractor || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200 text-right">$${(contact.contactPrice || 0).toFixed(2)}</td>
+                            <td class="p-4 border-r border-b border-slate-200 text-right">$${(contact.pSumPrice || 0).toFixed(2)}</td>
+                            <td class="p-4 border-r border-b border-slate-200 text-right">$${(contact.contingencies || 0).toFixed(2)}</td>
+                            <td class="p-4 border-r border-b border-slate-200">
+                                <ul class="table-payment-list space-y-2">
+                                    <li>Advance: $${(contact.advancePaymentAmount || 0).toFixed(2)}</li>
+                                    <li>Part: $${(contact.partPaymentAmount || 0).toFixed(2)}</li>
+                                    <li>Final: $${(contact.finalPaymentAmount || 0).toFixed(2)}</li>
+                                    <li>Variation: $${(contact.variationAmount || 0).toFixed(2)}</li>
+                                    <li>Retention: $${(contact.retentionAmount || 0).toFixed(2)}</li>
+                                </ul>
+                            </td>
+                            <td class="p-4 border-r border-b border-slate-200 text-right">$${totalPayments.toFixed(2)}</td>
+                            <td class="p-4 border-r border-b border-slate-200 text-right">$${remainingBalance.toFixed(2)}</td>
+                            <td class="p-4 border-r border-b border-slate-200">${contact.relevantOfficer || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200">${contact.paymentStatus || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200 ${processBgClass}">${contact.currentPaymentProcess || 'N/A'}</td>
+                            <td class="p-4 border-r border-b border-slate-200">${contact.notes || 'N/A'}</td>
+                            <td class="p-4 border-b border-slate-200 space-y-2 flex flex-col justify-center items-center">
+                                <button data-id="${contact.id}" class="edit-btn bg-yellow-400 hover:bg-yellow-500 text-white text-sm font-bold py-2 px-4 rounded-full transition-colors w-full">Edit</button>
+                                <button data-id="${contact.id}" class="delete-btn bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-2 px-4 rounded-full transition-colors w-full">Delete</button>
+                            </td>
+                        </tr>
                     `;
-                    contactsTableBody.appendChild(tr);
+                    contactsTableBody.insertAdjacentHTML('beforeend', row);
                 });
 
-                // Re-attach event listeners to new buttons
-                contactsTableBody.querySelectorAll('.delete-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        showConfirmModal(e.currentTarget.dataset.id);
-                    });
-                });
-
-                contactsTableBody.querySelectorAll('.edit-btn').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const id = e.currentTarget.dataset.id;
-                        const item = list.find(x => x._id === id);
-                        if (!item) return;
-                        
-                        // Populate form fields
-                        for (const key in item) {
-                            const field = form.elements[key];
-                            if (field) {
-                                // For numeric values, ensure they are correctly formatted
-                                if (typeof item[key] === 'number') {
-                                    field.value = item[key].toFixed(2);
-                                } else {
-                                    field.value = item[key] || '';
+                // Attach event listeners for new buttons
+                document.querySelectorAll('.edit-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const id = e.target.dataset.id;
+                        const contactToEdit = allContacts.find(c => c.id === id);
+                        if (contactToEdit) {
+                            editingId = id;
+                            formTitle.textContent = "Edit Contact";
+                            submitBtn.textContent = "Update Contact";
+                            
+                            // Populate form fields
+                            for (const key in contactToEdit) {
+                                const input = document.getElementById(key);
+                                if (input) {
+                                    input.value = contactToEdit[key];
                                 }
                             }
+                            showForm();
                         }
-                        
-                        editingId = id;
-                        formTitle.textContent = "Edit Contact";
-                        submitBtn.textContent = "Update Contact";
-                        showForm();
                     });
                 });
-            }
 
-            function startContactsListener() {
-                if (!isAuthReady) {
-                    console.warn("Auth is not ready. Aborting Firestore listener start.");
-                    return;
-                }
-
-                if (unsubscribe) {
-                    unsubscribe();
-                }
-
-                console.log("Starting Firestore listener for contacts...");
-                const currentProcess = filterCurrentProcess.value;
-                const paymentStatus = filterPaymentStatus.value;
-                const searchTerm = searchContactNumber.value.trim();
-                
-                // Construct the base query
-                let contactQuery = collection(db, `artifacts/${appId}/public/data/contacts`);
-
-                const filters = [];
-                if (currentProcess !== 'all') {
-                    filters.push(where('currentPaymentProcess', '==', currentProcess));
-                }
-                if (paymentStatus !== 'all') {
-                    filters.push(where('paymentStatus', '==', paymentStatus));
-                }
-                if (searchTerm) {
-                    filters.push(where('contactNumber', '==', searchTerm));
-                }
-
-                // IMPORTANT FIX: A missing orderBy clause can cause the query to fail.
-                // It is a best practice to always order your queries, especially with where filters.
-                contactQuery = query(contactQuery, ...filters, orderBy('contactName'));
-                
-                unsubscribe = onSnapshot(contactQuery, (snapshot) => {
-                    console.log("Firestore data received. Docs:", snapshot.docs.length);
-                    const list = snapshot.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
-                    renderContacts(list);
-                }, (error) => {
-                    console.error("Error listening for real-time updates: ", error);
-                    contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Error loading data. Please check your connection or permissions.</td></tr>`;
+                document.querySelectorAll('.delete-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const id = e.target.dataset.id;
+                        showConfirmModal(id);
+                    });
                 });
             }
 
             // Event Listeners
             showFormBtn.addEventListener('click', showForm);
             cancelFormBtn.addEventListener('click', hideForm);
-            clearFormBtn.addEventListener('click', () => form.reset());
+            clearFormBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                form.reset();
+            });
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                submitBtn.disabled = true;
-                submitBtn.textContent = editingId ? 'Updating...' : 'Adding...';
-
-                const contactObj = formToObject(form);
+                const contactData = formToObject(form);
                 if (editingId) {
-                    await updateContact(editingId, contactObj);
+                    await updateContact(editingId, contactData);
                 } else {
-                    await saveContact(contactObj);
+                    await saveContact(contactData);
                 }
-                submitBtn.disabled = false;
-                hideForm();
             });
-            
-            // Modal button listeners
+
             confirmYesBtn.addEventListener('click', async () => {
                 if (deleteId) {
                     await deleteContact(deleteId);
+                    hideConfirmModal();
                 }
-                hideConfirmModal();
             });
 
-            confirmNoBtn.addEventListener('click', () => {
-                hideConfirmModal();
-            });
+            confirmNoBtn.addEventListener('click', hideConfirmModal);
 
-            // Filter and search listeners
-            filterCurrentProcess.addEventListener('change', startContactsListener);
-            filterPaymentStatus.addEventListener('change', startContactsListener);
-            searchContactNumber.addEventListener('input', debounce(startContactsListener, 500));
+            filterCurrentProcess.addEventListener('change', renderFilteredContacts);
+            filterPaymentStatus.addEventListener('change', renderFilteredContacts);
+            
+            // Debounced search
+            searchContactNumber.addEventListener('input', debounce(renderFilteredContacts, 300));
+
             clearFiltersBtn.addEventListener('click', () => {
                 filterCurrentProcess.value = 'all';
                 filterPaymentStatus.value = 'all';
                 searchContactNumber.value = '';
-                startContactsListener();
+                renderFilteredContacts();
             });
-            
-            const loadingTimeout = setTimeout(() => {
-                if (!isAuthReady) {
-                    contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Connection timed out. Please check your internet connection and refresh the page.</td></tr>`;
-                }
-            }, 10000); // 10 seconds timeout
 
-            // Initial Auth State Check
+            // --- MAIN APPLICATION LOGIC ---
+            // The onAuthStateChanged listener is CRUCIAL. It ensures Firebase is ready
+            // and the user is authenticated before we try to access the database.
             onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    console.log("Authentication successful. User ID:", user.uid);
-                    isAuthReady = true;
-                    clearTimeout(loadingTimeout);
-                    userIdDisplay.textContent = `User ID: ${user.uid}`;
-                    startContactsListener();
-                } else {
-                    try {
-                        console.log("No user found. Attempting to sign in.");
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        userIdDisplay.textContent = "Authentication failed.";
-                        contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Authentication failed. Please refresh the page.</td></tr>`;
+                if (!user) {
+                    // Sign in anonymously if no user is found
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
                     }
+                }
+                
+                if (!isAuthReady) {
+                    isAuthReady = true;
+                    console.log("2. Auth state is ready. Starting Firestore listener.");
+                    userIdDisplay.textContent = `Current User ID: ${auth.currentUser.uid}`;
+                    
+                    // Attach the real-time listener
+                    const contactsCol = collection(db, `artifacts/${appId}/public/data/contacts`);
+                    unsubscribe = onSnapshot(contactsCol, (snapshot) => {
+                        console.log("3. Firestore data received.");
+                        allContacts = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        renderFilteredContacts();
+                    }, (error) => {
+                        console.error("Error with Firestore snapshot: ", error);
+                        contactsTableBody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-red-500">Error loading data. Please check your permissions.</td></tr>`;
+                    });
                 }
             });
         });
     </script>
 </body>
 </html>
-
